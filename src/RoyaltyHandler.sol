@@ -10,4 +10,14 @@ contract RoyaltyHandler is Owned {
     using SafeTransferLib for ERC20;
 
     constructor() Owned(msg.sender) {}
+
+    function sendETH(address payable to, uint256 amount) external onlyOwner() {
+        to.safeTransferETH(amount);
+    }
+
+    function sendERC20(address to, address erc20Address, uint256 amount) external onlyOwner() {
+        ERC20(erc20Address).safeTransfer(to, amount);
+    }
+
+    receive() external payable {}
 }
