@@ -56,17 +56,23 @@ contract Akolytes is ERC721, ERC2981 {
     }
 
     // Claims royalties accrued for owned IDs
-    function claimRoyalties(address royaltyToken, uint256[] calldata ids) public {
+    function claimRoyalties(address royaltyToken, uint256[] calldata ids) public returns (uint256) {
         uint256 idLength = ids.length;
         accumulateRoyalty(royaltyToken);
         uint256 amountToSend;
-        uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken];
+        uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / MAX_AKOLS;
         for (uint i; i < idLength; ++i) {
             if (ownerOf(ids[i]) == msg.sender) {
                 uint256 idAndTokenKey = uint256(uint160(royaltyToken)) << 96 | ids[i];
+                
                 // This should undeflow if already claimed to the maximum amount
                 uint256 royaltyToAdd = amountPerId - royaltyClaimedPerId[idAndTokenKey];
-                amountToSend += royaltyToAdd;
+
+                // If we are sending a royalty amount, then keep track of the amount
+                if (royaltyToAdd > 0) {
+                    amountToSend += royaltyToAdd;
+                    royaltyClaimedPerId[idAndTokenKey] = amountPerId;
+                }
             }
             else {
                 revert Akoless();
@@ -80,6 +86,7 @@ contract Akolytes is ERC721, ERC2981 {
         else {
             RoyaltyHandler(ROYALTY_HANDER).sendERC20(msg.sender, royaltyToken, amountToSend);
         }
+        return amountToSend;
     }
 
     // Accumulates royalties accrued
@@ -127,4 +134,7 @@ contract Akolytes is ERC721, ERC2981 {
     function tokenURI(uint256 id) public view override returns (string memory) {
         return "";
     }
+
+    // Receive ETH
+    receive() external payable {}
 }
