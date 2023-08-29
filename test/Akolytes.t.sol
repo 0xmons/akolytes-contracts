@@ -159,6 +159,10 @@ contract AkolytesTest is Test {
             address(akolytes));
     }
 
+    function test_uri() public {
+      akolytes.tokenURIMutable(1);
+    }
+
     // Receive ETH
     receive() external payable {}
 }
