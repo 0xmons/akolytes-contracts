@@ -2,9 +2,9 @@
 pragma solidity 0.8.20;
 
 /// @title Distributions
+/// Have fun :^)
+
 library Distributions {
-    // Start and end are inclusive for all of these
-    // Uniform distribution
     function d1(
         uint256 seed
     ) public pure returns (uint256 result) {
@@ -13,8 +13,6 @@ library Distributions {
         uint256 diff = end + 1 - start;
         result = (seed % diff) + start;
     }
-
-    // Modal distribution, centered on (start+end)/2
     function d2(
         uint256 seed
     ) public pure returns (uint256 result) {
@@ -25,8 +23,6 @@ library Distributions {
         uint256 subresult2 = d1(seed2);
         result = (subresult1 + subresult2) / 2;
     }
-
-    // Symmetric distribution, with max density on start and end and least density on (start+end)/2
     function d3(
         uint256 seed
     ) public pure returns (uint256 result) {
@@ -40,9 +36,6 @@ library Distributions {
             result = start + (midpoint - d2Value);
         }
     }
-
-    // Even-favored distribution
-    // i.e., if odd, re-rolls
     function d4(
         uint256 seed
     ) public pure returns (uint256 result) {
@@ -55,8 +48,6 @@ library Distributions {
             );
         }
     }
-
-    // ???
     function d5(
         uint256 seed
     ) public pure returns (uint256 result) {
@@ -73,8 +64,6 @@ library Distributions {
         } else if (selector == 3) {}
         result = d4(newSeed);
     }
-
-    // kek
     function d6(uint256 id) public pure returns (uint256) {
       if (id == 0) {
         return 0;

@@ -66,8 +66,6 @@ contract Akolytes is ERC721, ERC2981 {
 
         // 5% royalty, set to this address
         _setDefaultRoyalty(address(this), 500);
-
-        _mint(msg.sender, 0);
     }
 
     // Claim for mons
@@ -266,14 +264,6 @@ contract Akolytes is ERC721, ERC2981 {
                     )
                 )
             );
-    }
-
-    event Foo(string s);
-
-    // Handles metadata from arweave hash
-    function tokenURIMutable(uint256 id) public returns (string memory) {
-        string memory uri = tokenURI(id);
-        emit Foo(uri);
     }
 
     // Receive ETH
