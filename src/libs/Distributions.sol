@@ -74,6 +74,7 @@ library Distributions {
         result = d4(newSeed);
     }
 
+    // kek
     function d6(uint256 id) public pure returns (uint256) {
       if (id == 0) {
         return 0;

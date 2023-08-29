@@ -66,6 +66,8 @@ contract Akolytes is ERC721, ERC2981 {
 
         // 5% royalty, set to this address
         _setDefaultRoyalty(address(this), 500);
+
+        _mint(msg.sender, 0);
     }
 
     // Claim for mons
@@ -212,34 +214,28 @@ contract Akolytes is ERC721, ERC2981 {
     function secondD(uint256 seed, uint256 id) internal view returns (string memory) {
       return string(abi.encodePacked(
             '"trait_type": "4tiart",'
-            '"value":', d4(seed),
-          '},{', 
+            '"value": "', d4(seed),
+          '"},{', 
             '"trait_type": "V",'
-            '"value":', d5(seed),
-          '},{', 
+            '"value": "', d5(seed),
+          '"},{', 
             '"trait_type": "-- . . . .",'
-            '"value":', d6(id),
-          '},{', 
-            '"trait_type": "unlockDatePerId",'
-            '"value":', Strings.toString(unlockDatePerId[id]),
-          '},{', 
-            '"trait_type": "royaltyClaimedPerId",'
-            '"value":', Strings.toString(royaltyClaimedPerId[uint256(uint160(address(0))) << 96 |id])
+            '"value": "', d6(id),
+          '"}'
       ));
     }
     function getD(uint256 seed, uint256 id) internal view returns (string memory) {
           return string(abi.encodePacked('{', 
             '"trait_type": "TRAIT ONE",'
-            '"value":', d1(seed),
-          '},{', 
+            '"value": "', d1(seed),
+          '"},{', 
             '"trait_type": "7R417_2",'
-            '"value":', d2(seed),
-          '},{', 
+            '"value": "', d2(seed),
+          '"},{', 
             '"trait_type": "trait3",'
-            '"value":', d3(seed),
-          '},{', 
-            secondD(seed, id),
-          '}'));
+            '"value": "', d3(seed),
+          '"},{', 
+            secondD(seed, id)));
     }
 
     // Handles metadata from arweave hash, constructs name and metadata
