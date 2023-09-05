@@ -4,32 +4,51 @@ pragma solidity 0.8.20;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC2981} from "openzeppelin-contracts/contracts/token/common/ERC2981.sol";
+import {ERC721} from "solmate/tokens/ERC721.sol";
 import {IERC2981} from "openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {ILSSVMPairFactoryLike} from "./ILSSVMPairFactory.sol";
 import {RoyaltyHandler} from "./RoyaltyHandler.sol";
-import {ERC721} from "./ERC721.sol";
+import {ERC721Minimal} from "./ERC721Minimal.sol";
 
 import {strings} from "./libs/strings.sol";
 import {Base64} from "./libs/Base64.sol";
 import {Distributions} from "./libs/Distributions.sol";
 
-contract Akolytes is ERC721, ERC2981 {
+contract Akolytes is ERC721Minimal, ERC2981 {
+
+    /*//////////////////////////////////////////////////////////////
+                  Struct
+    //////////////////////////////////////////////////////////////*/
 
     struct OwnerOfWithData {
         address owner;
         uint96 lastTransferTimestamp;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                      Libraries
+    //////////////////////////////////////////////////////////////*/
+
     using SafeTransferLib for address payable;
     using SafeTransferLib for ERC20;
     using strings for string;
     using strings for strings.slice;
 
+
+    /*//////////////////////////////////////////////////////////////
+                       Error
+    //////////////////////////////////////////////////////////////*/
+
     error Cooldown();
     error Monless();
     error Akoless();
+
+
+    /*//////////////////////////////////////////////////////////////
+                         Constants
+    //////////////////////////////////////////////////////////////*/
 
     uint256 constant MAX_AKOLS = 512;
     string private constant ARWEAVE_HASH = "XxDgZs6LRWDmzQIfR0Lssic8a4k3eQbyaosttObj7Ec";
@@ -50,10 +69,20 @@ contract Akolytes is ERC721, ERC2981 {
     // Max number of times we grab a syllable from s3
     uint256 private constant maxS3Iters = 2;
 
+
+    /*//////////////////////////////////////////////////////////////
+                         Immutables
+    //////////////////////////////////////////////////////////////*/
+
     // Immutable contract reference vars
     address immutable MONS;
     address immutable SUDO_FACTORY;
     address payable immutable public ROYALTY_HANDER;
+
+
+    /*//////////////////////////////////////////////////////////////
+                         Storage
+    //////////////////////////////////////////////////////////////*/
 
     // Mapping of (id, 256 bits) => (owner address, 160 bits | unlockDate timestamp, 96 bits)
     mapping(uint256 => OwnerOfWithData) public ownerOfWithData;
@@ -64,7 +93,12 @@ contract Akolytes is ERC721, ERC2981 {
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
 
-    constructor(address _mons, address _factory) ERC721("Akolytes", "AKL") {
+
+    /*//////////////////////////////////////////////////////////////
+                         Constructor
+    //////////////////////////////////////////////////////////////*/
+
+    constructor(address _mons, address _factory) ERC721Minimal("Akolytes", "AKL") {
         MONS = _mons;
         SUDO_FACTORY = _factory;
         ROYALTY_HANDER = payable(address(new RoyaltyHandler()));
@@ -72,6 +106,11 @@ contract Akolytes is ERC721, ERC2981 {
         // 5% royalty, set to this address
         _setDefaultRoyalty(address(this), 500);
     }
+
+
+    /*//////////////////////////////////////////////////////////////
+                 User Facing Claims
+    //////////////////////////////////////////////////////////////*/
 
     // Claim for mons
     function claimForMons(uint256[] calldata ids) public {
@@ -135,8 +174,13 @@ contract Akolytes is ERC721, ERC2981 {
         }
     }
 
+
+    /*//////////////////////////////////////////////////////////////
+                   IERC721 Compliance
+    //////////////////////////////////////////////////////////////*/
+
     // Overrides both ERC721 and ERC2981
-    function supportsInterface(bytes4 interfaceId) public pure override(ERC2981, ERC721) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override(ERC2981, ERC721Minimal) returns (bool) {
         return
             interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
             interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
@@ -184,6 +228,11 @@ contract Akolytes is ERC721, ERC2981 {
         }
         emit Transfer(from, to, id);
     }
+
+
+    /*//////////////////////////////////////////////////////////////
+                  Generative Metadata
+    //////////////////////////////////////////////////////////////*/
 
     function getName(uint256 seed) public pure returns (string memory) {
         uint256 rng = seed;
@@ -295,6 +344,11 @@ contract Akolytes is ERC721, ERC2981 {
                 )
             );
     }
+
+
+    /*//////////////////////////////////////////////////////////////
+                      Misc
+    //////////////////////////////////////////////////////////////*/
 
     function _mint(address to, uint256 id, uint256 offset, uint256 amount) internal virtual {
         require(to != address(0), "INVALID_RECIPIENT");
