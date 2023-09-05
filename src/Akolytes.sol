@@ -347,7 +347,7 @@ contract Akolytes is ERC721Minimal, ERC2981 {
 
 
     /*//////////////////////////////////////////////////////////////
-                      Misc
+                      Mint x Pool 
     //////////////////////////////////////////////////////////////*/
 
     function _mint(address to, uint256 id, uint256 offset, uint256 amount) internal virtual {
