@@ -13,7 +13,7 @@ contract MockERC721 is ERC721 {
     }
 
     // Handles metadata from arweave hash
-    function tokenURI(uint256 id) public view override returns (string memory) {
+    function tokenURI(uint256) public pure override returns (string memory) {
         return "";
     }
 }

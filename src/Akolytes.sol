@@ -61,9 +61,6 @@ contract Akolytes is ERC721, ERC2981 {
     // Mapping of (token address, 160 bits | akolyte id, 96 bits) => amount already claimed for that id
     mapping(uint256 => uint256) public royaltyClaimedPerId;
 
-    // Mapping of (akolyte id) => timestamp when unlocked
-    mapping(uint256 => uint256) public unlockDatePerId;
-
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
 
@@ -80,7 +77,7 @@ contract Akolytes is ERC721, ERC2981 {
     function claimForMons(uint256[] calldata ids) public {
         for (uint i; i < ids.length; ++i) {
             if (ERC721(MONS).ownerOf(ids[i]) == msg.sender) {
-                _mint(msg.sender, ids[i]);
+                _mint(msg.sender, ids[i], ids[i], 1);
             }
             else {
                 revert Monless();
@@ -139,12 +136,16 @@ contract Akolytes is ERC721, ERC2981 {
     }
 
     // Overrides both ERC721 and ERC2981
-    function supportsInterface(bytes4 interfaceId) public view override(ERC2981, ERC721) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public pure override(ERC2981, ERC721) returns (bool) {
         return
             interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
             interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
             interfaceId == type(IERC2981).interfaceId || // ERC165 interface for IERC2981
             interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata
+    }
+    
+    function ownerOf(uint256 id) public view override returns (address owner) {
+        owner = ownerOfWithData[id].owner;
     }
 
     // Transfers and sets time delay if to/from a non-sudo pool
@@ -153,14 +154,35 @@ contract Akolytes is ERC721, ERC2981 {
         address to,
         uint256 id
     ) public override {
+
+        require(from == ownerOf(id), "WRONG_FROM");
+        require(to != address(0), "INVALID_RECIPIENT");
+        require(
+            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id],
+            "NOT_AUTHORIZED"
+        );
+
+        // Underflow of the sender's balance is impossible because we check for
+        // ownership above and the recipient's balance can't realistically overflow.
+        unchecked {
+            _balanceOf[from]--;
+            _balanceOf[to]++;
+        }
+        delete getApproved[id];
         uint256 timestamp = block.timestamp;
-        if (timestamp < unlockDatePerId[id]) {
+        if (timestamp < ownerOfWithData[id].lastTransferTimestamp) {
             revert Cooldown();
         }
         if (!ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(from) && !ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(to)) {
-            unlockDatePerId[id] = timestamp + 7 days;
+            ownerOfWithData[id] = OwnerOfWithData({
+                owner: to,
+                lastTransferTimestamp: uint96(timestamp + 7 days)
+            });
         }
-        super.transferFrom(from, to, id);
+        else {
+            ownerOfWithData[id].owner = to;
+        }
+        emit Transfer(from, to, id);
     }
 
     function getName(uint256 seed) public pure returns (string memory) {
@@ -199,25 +221,25 @@ contract Akolytes is ERC721, ERC2981 {
         }
         return item.toString();
     }
-    function d1(uint256 seed) internal view returns (string memory) {
+    function d1(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d1(seed));
     }
-    function d2(uint256 seed) internal view returns (string memory) {
+    function d2(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d2(seed));
     }
-    function d3(uint256 seed) internal view returns (string memory) {
+    function d3(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d3(seed));
     }
-    function d4(uint256 seed) internal view returns (string memory) {
+    function d4(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d4(seed));
     }
-    function d5(uint256 seed) internal view returns (string memory) {
+    function d5(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d5(seed));
     }
-    function d6(uint256 seed) internal view returns (string memory) {
+    function d6(uint256 seed) internal pure returns (string memory) {
       return Strings.toString(Distributions.d6(seed));
     }
-    function secondD(uint256 seed, uint256 id) internal view returns (string memory) {
+    function secondD(uint256 seed, uint256 id) internal pure returns (string memory) {
       return string(abi.encodePacked(
             '"trait_type": "4tiart",'
             '"value": "', d4(seed),
@@ -230,7 +252,7 @@ contract Akolytes is ERC721, ERC2981 {
           '"}'
       ));
     }
-    function getD(uint256 seed, uint256 id) internal view returns (string memory) {
+    function getD(uint256 seed, uint256 id) internal pure returns (string memory) {
           return string(abi.encodePacked('{', 
             '"trait_type": "TRAIT ONE",'
             '"value": "', d1(seed),
@@ -272,6 +294,19 @@ contract Akolytes is ERC721, ERC2981 {
                     )
                 )
             );
+    }
+
+    function _mint(address to, uint256 id, uint256 offset, uint256 amount) internal virtual {
+        require(to != address(0), "INVALID_RECIPIENT");
+        require(ownerOf(id) == address(0), "ALREADY_MINTED");
+        // Counter overflow is incredibly unrealistic.
+        unchecked {
+            _balanceOf[to] += amount;
+        }
+        for (uint i; i < amount; ++i) {
+            ownerOfWithData[offset + i].owner = to;
+            emit Transfer(address(0), to, id);
+        }
     }
 
     // Receive ETH

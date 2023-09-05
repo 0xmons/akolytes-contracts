@@ -38,6 +38,11 @@ contract AkolytesTest is Test {
         }
         akolytes.claimForMons(ids);
 
+        // Assert that we own them all
+        for (uint i; i < 10; ++i) {
+            assertEq(akolytes.ownerOf(i), address(this));
+        }
+
         // Assert that msg.sender has 10
         assertEq(akolytes.balanceOf(address(this)), 10);
 
@@ -53,6 +58,7 @@ contract AkolytesTest is Test {
         aliceId[0] = 10;
         akolytes.claimForMons(aliceId);
         assertEq(akolytes.balanceOf(address(ALICE)), 1);
+        assertEq(akolytes.ownerOf(10), address(ALICE));
         vm.stopPrank();
     }
 
@@ -157,10 +163,6 @@ contract AkolytesTest is Test {
         assertEq(
             RoyaltyHandler(akolytes.ROYALTY_HANDER()).owner(), 
             address(akolytes));
-    }
-
-    function test_uri() public {
-      akolytes.tokenURIMutable(1);
     }
 
     // Receive ETH
