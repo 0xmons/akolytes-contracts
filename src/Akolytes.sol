@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {ERC721} from "solmate/tokens/ERC721.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC2981} from "openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import {IERC2981} from "openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
@@ -10,12 +9,18 @@ import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 import {ILSSVMPairFactoryLike} from "./ILSSVMPairFactory.sol";
 import {RoyaltyHandler} from "./RoyaltyHandler.sol";
+import {ERC721} from "./ERC721.sol";
 
 import {strings} from "./libs/strings.sol";
 import {Base64} from "./libs/Base64.sol";
 import {Distributions} from "./libs/Distributions.sol";
 
 contract Akolytes is ERC721, ERC2981 {
+
+    struct OwnerOfWithData {
+        address owner;
+        uint96 lastTransferTimestamp;
+    }
 
     using SafeTransferLib for address payable;
     using SafeTransferLib for ERC20;
@@ -49,6 +54,9 @@ contract Akolytes is ERC721, ERC2981 {
     address immutable MONS;
     address immutable SUDO_FACTORY;
     address payable immutable public ROYALTY_HANDER;
+
+    // Mapping of (id, 256 bits) => (owner address, 160 bits | unlockDate timestamp, 96 bits)
+    mapping(uint256 => OwnerOfWithData) public ownerOfWithData;
 
     // Mapping of (token address, 160 bits | akolyte id, 96 bits) => amount already claimed for that id
     mapping(uint256 => uint256) public royaltyClaimedPerId;
