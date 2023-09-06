@@ -10,6 +10,18 @@ import {MockPairFactory} from "./mocks/MockPairFactory.sol";
 import {Akolytes} from "../src/Akolytes.sol";
 import {RoyaltyHandler} from "../src/RoyaltyHandler.sol";
 
+// Sudo specific imports
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {LSSVMPairFactory} from "lib/lssvm2/src/LSSVMPairFactory.sol";
+import {RoyaltyEngine} from "lib/lssvm2/src/RoyaltyEngine.sol";
+import {LSSVMPairERC721ETH} from "lib/lssvm2/src/erc721/LSSVMPairERC721ETH.sol";
+import {LSSVMPairERC1155ETH} from "lib/lssvm2/src/erc1155/LSSVMPairERC1155ETH.sol";
+import {LSSVMPairERC721ERC20} from "lib/lssvm2/src/erc721/LSSVMPairERC721ERC20.sol";
+import {LSSVMPairERC1155ERC20} from "lib/lssvm2/src/erc1155/LSSVMPairERC1155ERC20.sol";
+import {LSSVMPair} from "lib/lssvm2/src/LSSVMPair.sol";
+import {LinearCurve} from "lib/lssvm2/src/bonding-curves/LinearCurve.sol";
+import {ICurve} from "lib/lssvm2/src/bonding-curves/ICurve.sol";
+
 contract AkolytesTest is Test {
 
     using SafeTransferLib for address payable;
@@ -17,13 +29,34 @@ contract AkolytesTest is Test {
     Akolytes akolytes;
     MockERC721 mockMons;
     MockPairFactory mockPairFactory;
+    LSSVMPairFactory pairFactory;
+    LinearCurve linearCurve;
 
-    address constant ALICE = address(123456789);
+    address payable constant ALICE = payable(address(123456789));
+    address payable constant BOB = payable(address(999999999));
 
     function setUp() public {
         mockMons = new MockERC721();
         mockPairFactory = new MockPairFactory();
         akolytes = new Akolytes(address(mockMons), address(mockPairFactory));
+        
+        // Initialize sudo stuff
+        RoyaltyEngine royaltyEngine = new RoyaltyEngine(address(0)); // We use a fake registry
+        LSSVMPairERC721ETH erc721ETHTemplate = new LSSVMPairERC721ETH(royaltyEngine);
+        LSSVMPairERC721ERC20 erc721ERC20Template = new LSSVMPairERC721ERC20(royaltyEngine);
+        LSSVMPairERC1155ETH erc1155ETHTemplate = new LSSVMPairERC1155ETH(royaltyEngine);
+        LSSVMPairERC1155ERC20 erc1155ERC20Template = new LSSVMPairERC1155ERC20(royaltyEngine);
+        pairFactory = new LSSVMPairFactory(
+            erc721ETHTemplate,
+            erc721ERC20Template,
+            erc1155ETHTemplate,
+            erc1155ERC20Template,
+            payable(address(0)),
+            0, // Zero protocol fee to make calculations easier
+            address(this)
+        );
+        linearCurve = new LinearCurve();
+        pairFactory.setBondingCurveAllowed(ICurve(address(linearCurve)), true);
     }
 
     function test_claimForMons() public {
@@ -163,6 +196,81 @@ contract AkolytesTest is Test {
         assertEq(
             RoyaltyHandler(akolytes.ROYALTY_HANDER()).owner(), 
             address(akolytes));
+    }
+
+    function test_sudoSpecificInteractions() public {
+
+        // Create new akolytes that is bound to the pair factory
+        akolytes = new Akolytes(address(mockMons), address(pairFactory));
+
+        // Create new sudo pool
+
+         // Mint ID 0 to msg.sender
+        // Attempt to claim for ID 0
+        mockMons.mint(0, 1);
+        uint256[] memory ids = new uint256[](1);
+        akolytes.claimForMons(ids);
+
+        // Transfer to ALICE
+        address testAddy = address(this);
+        akolytes.transferFrom(testAddy, ALICE, 0);
+
+        // Prank as ALICE
+        vm.startPrank(ALICE);
+
+        // Cannot transfer from ALICE to BOB
+        vm.expectRevert(Akolytes.Cooldown.selector);
+        akolytes.transferFrom(ALICE, BOB, 0);
+
+        // Approve the collection and list it for sale
+        uint256[] memory id = new uint256[](1);
+        id[0] = 0;
+        ERC721(address(akolytes)).setApprovalForAll(address(pairFactory), true);
+
+        // Check that ID 0 is now in the pair
+        uint256 price = 0.1 ether;
+        LSSVMPair pair = pairFactory.createPairERC721ETH(
+            IERC721(address(akolytes)),
+            ICurve(address(linearCurve)),
+            ALICE,
+            LSSVMPair.PoolType.TRADE,
+            0,
+            0,
+            uint128(price),
+            address(0),
+            id
+        );
+        assertEq(akolytes.balanceOf(address(pair)), 1);
+        assertEq(akolytes.ownerOf(0), address(pair));
+        vm.stopPrank();
+
+        // Check that we can buy ID 0
+        (,,, uint256 amount,,) = pair.getBuyNFTQuote(0, 1);
+        pair.swapTokenForSpecificNFTs{value: amount}(id, amount, address(this), false, address(0));
+
+        // Check that we get 0.05/512 ether as royalties claimed
+        uint256 royaltiesReceived = akolytes.claimRoyalties(address(0), id);
+        uint256 expectedAmount = price / 512 / 20;
+        assertEq(royaltiesReceived, expectedAmount);
+
+        // Check that transferring to ALICE still fails
+        vm.expectRevert(Akolytes.Cooldown.selector);
+        akolytes.transferFrom(address(this), ALICE, 0);
+
+        // Check that selling back to the pool succeeds
+        ERC721(address(akolytes)).setApprovalForAll(address(pair), true);
+        (,,, amount,,) = pair.getSellNFTQuote(0, 1);
+        pair.swapNFTsForToken(id, amount, payable(address(this)), false, address(0));
+
+        // Check that ALICE can withdraw the NFT
+        vm.startPrank(ALICE);
+        pair.withdrawERC721(IERC721(address(akolytes)), id);
+
+        // Check that we get 0.05/512 ether as royalties claimed (as ALICE)
+        royaltiesReceived = akolytes.claimRoyalties(address(0), id);
+        expectedAmount = price / 512 / 20;
+        assertEq(royaltiesReceived, expectedAmount);
+        vm.stopPrank();
     }
 
     // Receive ETH

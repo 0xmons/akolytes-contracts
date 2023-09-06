@@ -125,10 +125,9 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     }
 
     // Claims royalties accrued for owned IDs
-    function claimRoyalties(address royaltyToken, uint256[] calldata ids) public returns (uint256) {
+    function claimRoyalties(address royaltyToken, uint256[] calldata ids) public returns (uint256 royaltiesReceived) {
         uint256 idLength = ids.length;
         accumulateRoyalty(royaltyToken);
-        uint256 amountToSend;
         uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / MAX_AKOLS;
         for (uint i; i < idLength; ++i) {
             if (ownerOf(ids[i]) == msg.sender) {
@@ -139,7 +138,7 @@ contract Akolytes is ERC721Minimal, ERC2981 {
 
                 // If we are sending a royalty amount, then keep track of the amount
                 if (royaltyToAdd > 0) {
-                    amountToSend += royaltyToAdd;
+                    royaltiesReceived += royaltyToAdd;
                     royaltyClaimedPerId[idAndTokenKey] = amountPerId;
                 }
             }
@@ -149,13 +148,13 @@ contract Akolytes is ERC721Minimal, ERC2981 {
         }
         // If native token
         if (royaltyToken == address(0)) {
-            RoyaltyHandler(ROYALTY_HANDER).sendETH(payable(msg.sender), amountToSend);
+            RoyaltyHandler(ROYALTY_HANDER).sendETH(payable(msg.sender), royaltiesReceived);
         }
         // Otherwise, do ERC20 transfer
         else {
-            RoyaltyHandler(ROYALTY_HANDER).sendERC20(msg.sender, royaltyToken, amountToSend);
+            RoyaltyHandler(ROYALTY_HANDER).sendERC20(msg.sender, royaltyToken, royaltiesReceived);
         }
-        return amountToSend;
+        return royaltiesReceived;
     }
 
     // Accumulates royalties accrued
@@ -214,17 +213,31 @@ contract Akolytes is ERC721Minimal, ERC2981 {
         }
         delete getApproved[id];
         uint256 timestamp = block.timestamp;
-        if (timestamp < ownerOfWithData[id].lastTransferTimestamp) {
-            revert Cooldown();
+
+        // Always allow transfer if one of the recipients is a sudo pool
+        bool isPair;
+        try ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(from) returns (bool result) {
+            isPair = result;
+        } catch {}
+        if (!isPair) {
+            try ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(to) returns (bool result) {
+                isPair = result;
+            } catch {}
         }
-        if (!ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(from) && !ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(to)) {
+        if (isPair) {
+            ownerOfWithData[id].owner = to;
+        }
+        // If one of the two recipients is not a sudo pool
+        else {
+            // Check if earlier than allowed, if so, then revert
+            if (timestamp < ownerOfWithData[id].lastTransferTimestamp) {
+                revert Cooldown();
+            }
+            // If it is past the cooldown, then we set a new cooldown but let the transfer go through
             ownerOfWithData[id] = OwnerOfWithData({
                 owner: to,
                 lastTransferTimestamp: uint96(timestamp + 7 days)
-            });
-        }
-        else {
-            ownerOfWithData[id].owner = to;
+            });        
         }
         emit Transfer(from, to, id);
     }
@@ -362,6 +375,9 @@ contract Akolytes is ERC721Minimal, ERC2981 {
             emit Transfer(address(0), to, id);
         }
     }
+
+    // TODO: XMON GDA pool
+    // TODO: normal buy n sell pool
 
     // Receive ETH
     receive() external payable {}
