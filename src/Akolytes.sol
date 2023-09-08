@@ -3,6 +3,7 @@ pragma solidity 0.8.20;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {Owned} from "solmate/auth/Owned.sol";
 import {ERC2981} from "openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {IERC2981} from "openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
@@ -16,7 +17,7 @@ import {strings} from "./libs/strings.sol";
 import {Base64} from "./libs/Base64.sol";
 import {Distributions} from "./libs/Distributions.sol";
 
-contract Akolytes is ERC721Minimal, ERC2981 {
+contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     /*//////////////////////////////////////////////////////////////
                   Struct
@@ -44,6 +45,17 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     error Cooldown();
     error Monless();
     error Akoless();
+    error Scarce();
+    error TooHigh();
+    error NoYeet();
+    
+
+    /*//////////////////////////////////////////////////////////////
+                       Events
+    //////////////////////////////////////////////////////////////*/
+
+    event NewRoyalty(uint256 newRoyalty);
+    event RoyaltiesClaimed(address token, uint256 amount);
 
 
     /*//////////////////////////////////////////////////////////////
@@ -69,6 +81,12 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     // Max number of times we grab a syllable from s3
     uint256 private constant maxS3Iters = 2;
 
+    // Max 10% royalty
+    uint256 private constant MAX_ROYALTY = 1000;
+
+    // Get ur akolytes before i yeet them
+    uint256 private constant MIN_YEET_DELAY = 7 days;
+
 
     /*//////////////////////////////////////////////////////////////
                          Immutables
@@ -78,7 +96,7 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     address immutable MONS;
     address immutable SUDO_FACTORY;
     address payable immutable public ROYALTY_HANDER;
-
+    uint256 immutable START_TIME;
 
     /*//////////////////////////////////////////////////////////////
                          Storage
@@ -93,18 +111,19 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
 
-
     /*//////////////////////////////////////////////////////////////
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _mons, address _factory) ERC721Minimal("Akolytes", "AKL") {
+    constructor(address _mons, address _factory) ERC721Minimal("Akolytes", "AKL") Owned(msg.sender) {
         MONS = _mons;
         SUDO_FACTORY = _factory;
         ROYALTY_HANDER = payable(address(new RoyaltyHandler()));
 
         // 5% royalty, set to this address
         _setDefaultRoyalty(address(this), 500);
+
+        START_TIME = block.timestamp;
     }
 
 
@@ -115,13 +134,11 @@ contract Akolytes is ERC721Minimal, ERC2981 {
     // Claim for mons
     function claimForMons(uint256[] calldata ids) public {
         for (uint i; i < ids.length; ++i) {
-            if (ERC721(MONS).ownerOf(ids[i]) == msg.sender) {
-                _mint(msg.sender, ids[i], ids[i], 1);
-            }
-            else {
+            if (ERC721(MONS).ownerOf(ids[i]) != msg.sender) {
                 revert Monless();
             }
         }
+        _mint(msg.sender, ids);
     }
 
     // Claims royalties accrued for owned IDs
@@ -165,11 +182,13 @@ contract Akolytes is ERC721Minimal, ERC2981 {
             uint256 ethBalance = address(this).balance;
             royaltyAccumulatedPerTokenType[address(0)] += ethBalance;
             ROYALTY_HANDER.safeTransferETH(ethBalance);
+            emit RoyaltiesClaimed(royaltyToken, ethBalance);
         }
         else {
             uint256 tokenBalance = ERC20(royaltyToken).balanceOf(address(this));
             royaltyAccumulatedPerTokenType[royaltyToken] += tokenBalance;
             ERC20(royaltyToken).safeTransfer(ROYALTY_HANDER, tokenBalance);
+            emit RoyaltiesClaimed(royaltyToken, tokenBalance);
         }
     }
 
@@ -363,21 +382,57 @@ contract Akolytes is ERC721Minimal, ERC2981 {
                       Mint x Pool 
     //////////////////////////////////////////////////////////////*/
 
-    function _mint(address to, uint256 id, uint256 offset, uint256 amount) internal virtual {
+    function _mint(address to, uint256[] memory ids) internal virtual {
         require(to != address(0), "INVALID_RECIPIENT");
-        require(ownerOf(id) == address(0), "ALREADY_MINTED");
+        uint256 numIds = ids.length;
         // Counter overflow is incredibly unrealistic.
         unchecked {
-            _balanceOf[to] += amount;
+            _balanceOf[to] += numIds;
         }
-        for (uint i; i < amount; ++i) {
-            ownerOfWithData[offset + i].owner = to;
+        for (uint i; i < numIds; ++i) {
+            uint256 id = ids[i];
+            if (id >= MAX_AKOLS) {
+                revert Scarce();
+            }
+            require(ownerOf(id) == address(0), "ALREADY_MINTED");
+            ownerOfWithData[id].owner = to;
             emit Transfer(address(0), to, id);
         }
     }
 
     // TODO: XMON GDA pool
     // TODO: normal buy n sell pool
+
+    /*//////////////////////////////////////////////////////////////
+                        Tweaks
+    //////////////////////////////////////////////////////////////*/
+
+    function adjustRoyalty(uint96 newRoyalty) public onlyOwner {
+        if (newRoyalty <= MAX_ROYALTY) {
+            _setDefaultRoyalty(address(this), newRoyalty);
+            emit NewRoyalty(newRoyalty);
+        }
+        else {
+            revert TooHigh();
+        }
+    }
+
+    function yeet(uint256[] calldata ids) public onlyOwner {
+        // Can only yeet after min yeet delay
+        if (block.timestamp < START_TIME + MIN_YEET_DELAY) {
+            revert NoYeet();
+        }
+
+        // Can only yeet below 341 (ensures no supply rug)
+        uint256 numIds = ids.length;
+        for (uint i; i < numIds; ++i) {
+            if (ids[i] >= 341) {
+                revert Scarce();
+            }
+        }
+
+        _mint(msg.sender, ids);
+    }
 
     // Receive ETH
     receive() external payable {}

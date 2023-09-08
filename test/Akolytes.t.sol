@@ -95,6 +95,68 @@ contract AkolytesTest is Test {
         vm.stopPrank();
     }
 
+    function test_claimForMonsMalicious() public {
+        // Mint IDs 0 to 9 to msg.sender
+        mockMons.mint(0, 10);
+        uint256[] memory ids = new uint256[](10);
+
+        // Attempt to claim for ID #0 ten times
+        vm.expectRevert("ALREADY_MINTED");
+        akolytes.claimForMons(ids);
+
+        // Mint ID 1000 to msg.sender
+        mockMons.mint(1000, 1);
+        ids = new uint256[](1);
+        ids[0] = 1000;
+
+        // Expect it to fail because it is greater than ID 512
+        vm.expectRevert(Akolytes.Scarce.selector);
+        akolytes.claimForMons(ids);
+    }
+
+    function test_yeet() public {
+
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = 341;
+
+        // ALICE cannot yeet
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(ALICE);
+        akolytes.yeet(ids);
+
+        // msg.sender cannot yet
+        vm.expectRevert(Akolytes.NoYeet.selector);
+        akolytes.yeet(ids);
+
+        // Wait 7 days and then attempt to yeet
+        // Should fail because ID is too high
+        vm.warp(block.timestamp + 7 days + 1);
+        vm.expectRevert(Akolytes.Scarce.selector);
+        akolytes.yeet(ids);
+
+        // Try again with lower ID
+        // It should
+        ids[0] = 340;
+        akolytes.yeet(ids);
+        assertEq(akolytes.balanceOf(address(this)), 1);
+    }
+
+    function test_adjustRoyalty() public {
+
+        // ALICE cannot adjust
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(ALICE);
+        akolytes.adjustRoyalty(0);
+
+        // Caller can adjust
+        akolytes.adjustRoyalty(0);
+        akolytes.adjustRoyalty(1000);
+
+        // Caller cannot adjust past max
+        vm.expectRevert(Akolytes.TooHigh.selector);
+        akolytes.adjustRoyalty(1001);
+    }
+
     function test_transferLock() public {
 
         // Mint ID 0 to msg.sender
@@ -203,8 +265,6 @@ contract AkolytesTest is Test {
         // Create new akolytes that is bound to the pair factory
         akolytes = new Akolytes(address(mockMons), address(pairFactory));
 
-        // Create new sudo pool
-
          // Mint ID 0 to msg.sender
         // Attempt to claim for ID 0
         mockMons.mint(0, 1);
@@ -227,6 +287,7 @@ contract AkolytesTest is Test {
         id[0] = 0;
         ERC721(address(akolytes)).setApprovalForAll(address(pairFactory), true);
 
+        // Create new sudo pool
         // Check that ID 0 is now in the pair
         uint256 price = 0.1 ether;
         LSSVMPair pair = pairFactory.createPairERC721ETH(
