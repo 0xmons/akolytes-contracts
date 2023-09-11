@@ -8,6 +8,7 @@ import {ERC721} from "solmate/tokens/ERC721.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
 import {MockPairFactory} from "./mocks/MockPairFactory.sol";
 import {Akolytes} from "../src/Akolytes.sol";
+import {Markov} from "../src/Markov.sol";
 import {RoyaltyHandler} from "../src/RoyaltyHandler.sol";
 
 // Sudo specific imports
@@ -38,7 +39,7 @@ contract AkolytesTest is Test {
     function setUp() public {
         mockMons = new MockERC721();
         mockPairFactory = new MockPairFactory();
-        akolytes = new Akolytes(address(mockMons), address(mockPairFactory));
+        akolytes = new Akolytes(address(mockMons), address(mockPairFactory), address(0));
         
         // Initialize sudo stuff
         RoyaltyEngine royaltyEngine = new RoyaltyEngine(address(0)); // We use a fake registry
@@ -78,6 +79,10 @@ contract AkolytesTest is Test {
 
         // Assert that msg.sender has 10
         assertEq(akolytes.balanceOf(address(this)), 10);
+
+        // Assert that we cannot claim again
+        vm.expectRevert("ALREADY_MINTED");
+        akolytes.claimForMons(ids);
 
         // Attempt to claim for ALICE, expect it to fail
         vm.prank(ALICE);
@@ -263,7 +268,7 @@ contract AkolytesTest is Test {
     function test_sudoSpecificInteractions() public {
 
         // Create new akolytes that is bound to the pair factory
-        akolytes = new Akolytes(address(mockMons), address(pairFactory));
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0));
 
          // Mint ID 0 to msg.sender
         // Attempt to claim for ID 0
@@ -332,6 +337,28 @@ contract AkolytesTest is Test {
         expectedAmount = price / 512 / 20;
         assertEq(royaltiesReceived, expectedAmount);
         vm.stopPrank();
+    }
+
+    event Foo(string s);
+    function test_tokenURI() public {
+
+        Markov m = new Markov();
+
+        // Create new akolytes that is bound to the pair factory
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m));
+
+        // Mint IDs 0 to 9 to msg.sender
+        mockMons.mint(0, 10);
+        uint256[] memory ids = new uint256[](10);
+
+        // Attempt to claim for IDs 0 to 9
+        for (uint i; i < 10; ++i) {
+            ids[i] = i;
+        }
+        akolytes.claimForMons(ids);
+
+        // Check the URI
+        emit Foo(akolytes.tokenURI(1));
     }
 
     // Receive ETH

@@ -17,6 +17,8 @@ import {strings} from "./libs/strings.sol";
 import {Base64} from "./libs/Base64.sol";
 import {Distributions} from "./libs/Distributions.sol";
 
+import {IMarkov} from "./Markov.sol";
+
 contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     /*//////////////////////////////////////////////////////////////
@@ -87,6 +89,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     // Get ur akolytes before i yeet them
     uint256 private constant MIN_YEET_DELAY = 7 days;
 
+    // For metadata
+    uint256 constant DURATION = 42;
+
 
     /*//////////////////////////////////////////////////////////////
                          Immutables
@@ -97,6 +102,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     address immutable SUDO_FACTORY;
     address payable immutable public ROYALTY_HANDER;
     uint256 immutable START_TIME;
+
+    // Babble babble
+    IMarkov MARKOV;
 
     /*//////////////////////////////////////////////////////////////
                          Storage
@@ -111,11 +119,12 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
 
+
     /*//////////////////////////////////////////////////////////////
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _mons, address _factory) ERC721Minimal("Akolytes", "AKL") Owned(msg.sender) {
+    constructor(address _mons, address _factory, address _markov) ERC721Minimal("Akolytes", "AKL") Owned(msg.sender) {
         MONS = _mons;
         SUDO_FACTORY = _factory;
         ROYALTY_HANDER = payable(address(new RoyaltyHandler()));
@@ -124,6 +133,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         _setDefaultRoyalty(address(this), 500);
 
         START_TIME = block.timestamp;
+
+        MARKOV = IMarkov(_markov);
     }
 
 
@@ -269,18 +280,18 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     function getName(uint256 seed) public pure returns (string memory) {
         uint256 rng = seed;
         // Get uniform from s1
-        string memory nameS1 = getItemFromCSV(s1, rng % s1Length);
+        string memory nameS1 = _getItemFromCSV(s1, rng % s1Length);
         // Update seed
         rng = uint256(keccak256(abi.encode(rng)));
         // Get uniform from s2
-        string memory nameS2 = getItemFromCSV(s2, rng % s2Length);
+        string memory nameS2 = _getItemFromCSV(s2, rng % s2Length);
         // Concatenate the two
         string memory name = string(abi.encodePacked(nameS1, nameS2));
         // Update seed
         rng = uint256(keccak256(abi.encode(rng)));
         // Add any s3 syllables (if possible)
         for (uint256 i = 0; i < rng % (maxS3Iters + 1); i++) {
-            string memory nameS3 = getItemFromCSV(s3, rng % s3Length);
+            string memory nameS3 = _getItemFromCSV(s3, rng % s3Length);
             rng = uint256(keccak256(abi.encode(rng)));
             name = string(abi.encodePacked(name, nameS3));
         }
@@ -288,7 +299,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     }
 
     // Don't worry about anything from here until the tokenURI
-    function getItemFromCSV(string memory str, uint256 index)
+    function _getItemFromCSV(string memory str, uint256 index)
         internal
         pure
         returns (string memory)
@@ -360,6 +371,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                                 '{"name":"',
                                 getName(id),
                                 '", "description":"',
+                                MARKOV.speak(id, DURATION),
                                 '", "image": "',
                                 "ar://",
                                 ARWEAVE_HASH,
