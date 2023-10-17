@@ -102,6 +102,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     address private immutable MONS;
     address private immutable SUDO_FACTORY;
     address private immutable GDA_ADDRESS;
+    address private immutable LINEAR_ADDRESS;
     address private immutable XMON_ADDRESS;
     address payable public immutable ROYALTY_HANDER;
     uint256 private immutable START_TIME;
@@ -126,7 +127,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _mons, address _factory, address _markov, address _gda, address _xmon)
+    constructor(address _mons, address _factory, address _markov, address _gda, address _xmon, address _linear)
         ERC721Minimal("Akolytes", "AKL")
         Owned(msg.sender)
     {
@@ -142,6 +143,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         MARKOV = IMarkov(_markov);
         GDA_ADDRESS = _gda;
         XMON_ADDRESS = _xmon;
+        LINEAR_ADDRESS = _linear;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -415,15 +417,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     }
 
     function setupGDA() public onlyOwner {
-        uint256[] memory akolytesToDeposit = new uint256[](72);
-        for (uint256 i; i < 72;) {
-            akolytesToDeposit[i] = 340 + i;
-            unchecked {
-                ++i;
-            }
-        }
-        _mint(address(this), akolytesToDeposit);
-        ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
+        uint256[] memory empty = new uint256[](0);
+        LSSVMPair pair = ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
             ILSSVMPairFactoryLike.CreateERC721ERC20PairParams({
                 token: ERC20(XMON_ADDRESS),
                 nft: IERC721(address(this)),
@@ -434,10 +429,18 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 fee: 0,
                 spotPrice: 5 ether,
                 propertyChecker: address(0),
-                initialNFTIDs: akolytesToDeposit,
+                initialNFTIDs: empty,
                 initialTokenBalance: 0
             })
         );
+        uint256[] memory akolytesToDeposit = new uint256[](72);
+        for (uint256 i; i < 72;) {
+            akolytesToDeposit[i] = 341 + i;
+            unchecked {
+                ++i;
+            }
+        }
+        _mint(address(pair), akolytesToDeposit);
     }
 
     // TODO: normal buy n sell pool
