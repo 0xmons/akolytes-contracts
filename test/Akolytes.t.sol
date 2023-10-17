@@ -39,7 +39,7 @@ contract AkolytesTest is Test {
     function setUp() public {
         mockMons = new MockERC721();
         mockPairFactory = new MockPairFactory();
-        akolytes = new Akolytes(address(mockMons), address(mockPairFactory), address(0));
+        akolytes = new Akolytes(address(mockMons), address(mockPairFactory), address(0), address(0), address(0));
         
         // Initialize sudo stuff
         RoyaltyEngine royaltyEngine = new RoyaltyEngine(address(0)); // We use a fake registry
@@ -268,7 +268,7 @@ contract AkolytesTest is Test {
     function test_sudoSpecificInteractions() public {
 
         // Create new akolytes that is bound to the pair factory
-        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0));
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(0), address(0));
 
          // Mint ID 0 to msg.sender
         // Attempt to claim for ID 0
@@ -345,7 +345,7 @@ contract AkolytesTest is Test {
         Markov m = new Markov();
 
         // Create new akolytes that is bound to the pair factory
-        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m));
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m), address(0), address(0));
 
         // Mint IDs 0 to 9 to msg.sender
         mockMons.mint(0, 10);

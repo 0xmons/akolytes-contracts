@@ -5,17 +5,14 @@ pragma solidity 0.8.20;
 /// Have fun :^)
 
 library Distributions {
-    function d1(
-        uint256 seed
-    ) public pure returns (uint256 result) {
+    function d1(uint256 seed) public pure returns (uint256 result) {
         uint256 start = 0;
         uint256 end = 512;
         uint256 diff = end + 1 - start;
         result = (seed % diff) + start;
     }
-    function d2(
-        uint256 seed
-    ) public pure returns (uint256 result) {
+
+    function d2(uint256 seed) public pure returns (uint256 result) {
         uint256 start = 0;
         uint256 end = 512;
         uint256 subresult1 = d1(seed);
@@ -23,9 +20,8 @@ library Distributions {
         uint256 subresult2 = d1(seed2);
         result = (subresult1 + subresult2) / 2;
     }
-    function d3(
-        uint256 seed
-    ) public pure returns (uint256 result) {
+
+    function d3(uint256 seed) public pure returns (uint256 result) {
         uint256 start = 0;
         uint256 end = 512;
         uint256 midpoint = (start + end) / 2;
@@ -36,25 +32,19 @@ library Distributions {
             result = start + (midpoint - d2Value);
         }
     }
-    function d4(
-        uint256 seed
-    ) public pure returns (uint256 result) {
+
+    function d4(uint256 seed) public pure returns (uint256 result) {
         uint256 start = 0;
         uint256 end = 512;
         result = d1(seed);
         if (result % 2 == 1) {
-            result = d1(
-                uint256(keccak256(abi.encode(seed, start, end)))
-            );
+            result = d1(uint256(keccak256(abi.encode(seed, start, end))));
         }
     }
-    function d5(
-        uint256 seed
-    ) public pure returns (uint256 result) {
+
+    function d5(uint256 seed) public pure returns (uint256 result) {
         uint256 selector = seed % 4;
-        uint256 newSeed = uint256(
-            keccak256(abi.encode(seed / d1(seed)))
-        );
+        uint256 newSeed = uint256(keccak256(abi.encode(seed / d1(seed))));
         if (selector == 0) {
             result = d3(newSeed);
         } else if (selector == 1) {
@@ -64,16 +54,17 @@ library Distributions {
         } else if (selector == 3) {}
         result = d4(newSeed);
     }
+
     function d6(uint256 id) public pure returns (uint256) {
-      if (id == 0) {
-        return 0;
-      }
-      for (uint i = 1; i < id/2; i++) {
-        uint result = id/i;
-        if (result == 0) {
-          return 1;
+        if (id == 0) {
+            return 0;
         }
-      }
-      return 2;
+        for (uint256 i = 1; i < id / 2; i++) {
+            uint256 result = id / i;
+            if (result == 0) {
+                return 1;
+            }
+        }
+        return 2;
     }
 }

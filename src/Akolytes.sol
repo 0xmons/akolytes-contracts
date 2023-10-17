@@ -4,10 +4,16 @@ pragma solidity 0.8.20;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC2981} from "openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
+
+import {ERC2981} from "openzeppelin-contracts/contracts/token/common/ERC2981.sol";
 import {IERC2981} from "openzeppelin-contracts/contracts/interfaces/IERC2981.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+
+import {IERC721} from "openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import {ICurve} from "lssvm2/bonding-curves/ICurve.sol";
+import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {ILSSVMPairFactoryLike} from "./ILSSVMPairFactory.sol";
 import {RoyaltyHandler} from "./RoyaltyHandler.sol";
@@ -20,7 +26,6 @@ import {Distributions} from "./libs/Distributions.sol";
 import {IMarkov} from "./Markov.sol";
 
 contract Akolytes is ERC721Minimal, ERC2981, Owned {
-
     /*//////////////////////////////////////////////////////////////
                   Struct
     //////////////////////////////////////////////////////////////*/
@@ -39,7 +44,6 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     using strings for string;
     using strings for strings.slice;
 
-
     /*//////////////////////////////////////////////////////////////
                        Error
     //////////////////////////////////////////////////////////////*/
@@ -50,7 +54,6 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     error Scarce();
     error TooHigh();
     error NoYeet();
-    
 
     /*//////////////////////////////////////////////////////////////
                        Events
@@ -58,7 +61,6 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     event NewRoyalty(uint256 newRoyalty);
     event RoyaltiesClaimed(address token, uint256 amount);
-
 
     /*//////////////////////////////////////////////////////////////
                          Constants
@@ -92,19 +94,20 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     // For metadata
     uint256 constant DURATION = 42;
 
-
     /*//////////////////////////////////////////////////////////////
                          Immutables
     //////////////////////////////////////////////////////////////*/
 
     // Immutable contract reference vars
-    address immutable MONS;
-    address immutable SUDO_FACTORY;
-    address payable immutable public ROYALTY_HANDER;
-    uint256 immutable START_TIME;
+    address private immutable MONS;
+    address private immutable SUDO_FACTORY;
+    address private immutable GDA_ADDRESS;
+    address private immutable XMON_ADDRESS;
+    address payable public immutable ROYALTY_HANDER;
+    uint256 private immutable START_TIME;
 
     // Babble babble
-    IMarkov MARKOV;
+    IMarkov public immutable MARKOV;
 
     /*//////////////////////////////////////////////////////////////
                          Storage
@@ -119,12 +122,14 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
 
-
     /*//////////////////////////////////////////////////////////////
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _mons, address _factory, address _markov) ERC721Minimal("Akolytes", "AKL") Owned(msg.sender) {
+    constructor(address _mons, address _factory, address _markov, address _gda, address _xmon)
+        ERC721Minimal("Akolytes", "AKL")
+        Owned(msg.sender)
+    {
         MONS = _mons;
         SUDO_FACTORY = _factory;
         ROYALTY_HANDER = payable(address(new RoyaltyHandler()));
@@ -135,8 +140,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         START_TIME = block.timestamp;
 
         MARKOV = IMarkov(_markov);
+        GDA_ADDRESS = _gda;
+        XMON_ADDRESS = _xmon;
     }
-
 
     /*//////////////////////////////////////////////////////////////
                  User Facing Claims
@@ -144,7 +150,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     // Claim for mons
     function claimForMons(uint256[] calldata ids) public {
-        for (uint i; i < ids.length; ++i) {
+        for (uint256 i; i < ids.length; ++i) {
             if (ERC721(MONS).ownerOf(ids[i]) != msg.sender) {
                 revert Monless();
             }
@@ -157,10 +163,10 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         uint256 idLength = ids.length;
         accumulateRoyalty(royaltyToken);
         uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / MAX_AKOLS;
-        for (uint i; i < idLength; ++i) {
+        for (uint256 i; i < idLength; ++i) {
             if (ownerOf(ids[i]) == msg.sender) {
                 uint256 idAndTokenKey = uint256(uint160(royaltyToken)) << 96 | ids[i];
-                
+
                 // This should undeflow if already claimed to the maximum amount
                 uint256 royaltyToAdd = amountPerId - royaltyClaimedPerId[idAndTokenKey];
 
@@ -169,8 +175,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                     royaltiesReceived += royaltyToAdd;
                     royaltyClaimedPerId[idAndTokenKey] = amountPerId;
                 }
-            }
-            else {
+            } else {
                 revert Akoless();
             }
         }
@@ -194,8 +199,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
             royaltyAccumulatedPerTokenType[address(0)] += ethBalance;
             ROYALTY_HANDER.safeTransferETH(ethBalance);
             emit RoyaltiesClaimed(royaltyToken, ethBalance);
-        }
-        else {
+        } else {
             uint256 tokenBalance = ERC20(royaltyToken).balanceOf(address(this));
             royaltyAccumulatedPerTokenType[royaltyToken] += tokenBalance;
             ERC20(royaltyToken).safeTransfer(ROYALTY_HANDER, tokenBalance);
@@ -203,36 +207,28 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         }
     }
 
-
     /*//////////////////////////////////////////////////////////////
                    IERC721 Compliance
     //////////////////////////////////////////////////////////////*/
 
     // Overrides both ERC721 and ERC2981
     function supportsInterface(bytes4 interfaceId) public pure override(ERC2981, ERC721Minimal) returns (bool) {
-        return
-            interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
-            interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
-            interfaceId == type(IERC2981).interfaceId || // ERC165 interface for IERC2981
-            interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata
+        return interfaceId == 0x01ffc9a7 // ERC165 Interface ID for ERC165
+            || interfaceId == 0x80ac58cd // ERC165 Interface ID for ERC721
+            || interfaceId == type(IERC2981).interfaceId // ERC165 interface for IERC2981
+            || interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata
     }
-    
+
     function ownerOf(uint256 id) public view override returns (address owner) {
         owner = ownerOfWithData[id].owner;
     }
 
     // Transfers and sets time delay if to/from a non-sudo pool
-    function transferFrom(
-        address from,
-        address to,
-        uint256 id
-    ) public override {
-
+    function transferFrom(address from, address to, uint256 id) public override {
         require(from == ownerOf(id), "WRONG_FROM");
         require(to != address(0), "INVALID_RECIPIENT");
         require(
-            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id],
-            "NOT_AUTHORIZED"
+            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id], "NOT_AUTHORIZED"
         );
 
         // Underflow of the sender's balance is impossible because we check for
@@ -264,14 +260,10 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 revert Cooldown();
             }
             // If it is past the cooldown, then we set a new cooldown but let the transfer go through
-            ownerOfWithData[id] = OwnerOfWithData({
-                owner: to,
-                lastTransferTimestamp: uint96(timestamp + 7 days)
-            });        
+            ownerOfWithData[id] = OwnerOfWithData({owner: to, lastTransferTimestamp: uint96(timestamp + 7 days)});
         }
         emit Transfer(from, to, id);
     }
-
 
     /*//////////////////////////////////////////////////////////////
                   Generative Metadata
@@ -299,11 +291,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     }
 
     // Don't worry about anything from here until the tokenURI
-    function _getItemFromCSV(string memory str, uint256 index)
-        internal
-        pure
-        returns (string memory)
-    {
+    function _getItemFromCSV(string memory str, uint256 index) internal pure returns (string memory) {
         strings.slice memory strSlice = str.toSlice();
         string memory separatorStr = ",";
         strings.slice memory separator = separatorStr.toSlice();
@@ -313,82 +301,94 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         }
         return item.toString();
     }
+
     function d1(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d1(seed));
+        return Strings.toString(Distributions.d1(seed));
     }
+
     function d2(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d2(seed));
+        return Strings.toString(Distributions.d2(seed));
     }
+
     function d3(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d3(seed));
+        return Strings.toString(Distributions.d3(seed));
     }
+
     function d4(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d4(seed));
+        return Strings.toString(Distributions.d4(seed));
     }
+
     function d5(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d5(seed));
+        return Strings.toString(Distributions.d5(seed));
     }
+
     function d6(uint256 seed) internal pure returns (string memory) {
-      return Strings.toString(Distributions.d6(seed));
+        return Strings.toString(Distributions.d6(seed));
     }
+
     function secondD(uint256 seed, uint256 id) internal pure returns (string memory) {
-      return string(abi.encodePacked(
-            '"trait_type": "4tiart",'
-            '"value": "', d4(seed),
-          '"},{', 
-            '"trait_type": "V",'
-            '"value": "', d5(seed),
-          '"},{', 
-            '"trait_type": "-- . . . .",'
-            '"value": "', d6(id),
-          '"}'
-      ));
+        return string(
+            abi.encodePacked(
+                '"trait_type": "4tiart",' '"value": "',
+                d4(seed),
+                '"},{',
+                '"trait_type": "V",' '"value": "',
+                d5(seed),
+                '"},{',
+                '"trait_type": "-- . . . .",' '"value": "',
+                d6(id),
+                '"}'
+            )
+        );
     }
+
     function getD(uint256 seed, uint256 id) internal pure returns (string memory) {
-          return string(abi.encodePacked('{', 
-            '"trait_type": "TRAIT ONE",'
-            '"value": "', d1(seed),
-          '"},{', 
-            '"trait_type": "7R417_2",'
-            '"value": "', d2(seed),
-          '"},{', 
-            '"trait_type": "trait3",'
-            '"value": "', d3(seed),
-          '"},{', 
-            secondD(seed, id)));
+        return string(
+            abi.encodePacked(
+                "{",
+                '"trait_type": "TRAIT ONE",' '"value": "',
+                d1(seed),
+                '"},{',
+                '"trait_type": "7R417_2",' '"value": "',
+                d2(seed),
+                '"},{',
+                '"trait_type": "trait3",' '"value": "',
+                d3(seed),
+                '"},{',
+                secondD(seed, id)
+            )
+        );
     }
 
     // Handles metadata from arweave hash, constructs name and metadata
     function tokenURI(uint256 id) public view override returns (string memory) {
         uint256 seed = uint256(keccak256(abi.encode(id & uint160(SUDO_FACTORY))));
-        return
-            string(
-                abi.encodePacked(
-                    "data:application/json;base64,",
-                    Base64.encode(
-                        bytes(
-                            abi.encodePacked(
-                                '{"name":"',
-                                getName(id),
-                                '", "description":"',
-                                MARKOV.speak(id, DURATION),
-                                '", "image": "',
-                                "ar://",
-                                ARWEAVE_HASH,
-                                "/m1",
-                                Strings.toString(id),
-                                ".gif",
-                                '", "attributes": [',
-                                  getD(seed, id),
-                                  ']',
-                                '}'
-                            )
+        return string(
+            abi.encodePacked(
+                "data:application/json;base64,",
+                Base64.encode(
+                    bytes(
+                        abi.encodePacked(
+                            '{"name":"',
+                            getName(id),
+                            '", "description":"',
+                            MARKOV.speak(id, DURATION),
+                            '", "image": "',
+                            "ar://",
+                            ARWEAVE_HASH,
+                            "/m1",
+                            Strings.toString(id),
+                            ".gif",
+                            '", "attributes": [',
+                            getD(seed, id),
+                            "]",
+                            "}"
                         )
                     )
                 )
-            );
+            )
+        );
     }
-
 
     /*//////////////////////////////////////////////////////////////
                       Mint x Pool 
@@ -397,11 +397,10 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     function _mint(address to, uint256[] memory ids) internal virtual {
         require(to != address(0), "INVALID_RECIPIENT");
         uint256 numIds = ids.length;
-        // Counter overflow is incredibly unrealistic.
         unchecked {
             _balanceOf[to] += numIds;
         }
-        for (uint i; i < numIds; ++i) {
+        for (uint256 i; i < numIds;) {
             uint256 id = ids[i];
             if (id >= MAX_AKOLS) {
                 revert Scarce();
@@ -409,10 +408,38 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
             require(ownerOf(id) == address(0), "ALREADY_MINTED");
             ownerOfWithData[id].owner = to;
             emit Transfer(address(0), to, id);
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    // TODO: XMON GDA pool
+    function setupGDA() public onlyOwner {
+        uint256[] memory akolytesToDeposit = new uint256[](72);
+        for (uint256 i; i < 72;) {
+            akolytesToDeposit[i] = 340 + i;
+            unchecked {
+                ++i;
+            }
+        }
+        _mint(address(this), akolytesToDeposit);
+        ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
+            ILSSVMPairFactoryLike.CreateERC721ERC20PairParams({
+                token: ERC20(XMON_ADDRESS),
+                nft: IERC721(address(this)),
+                bondingCurve: ICurve(GDA_ADDRESS),
+                assetRecipient: payable(address(0)),
+                poolType: LSSVMPair.PoolType.NFT,
+                delta: ((uint128(1500000000) << 88)) | ((uint128(11574) << 48)) | uint128(block.timestamp),
+                fee: 0,
+                spotPrice: 5 ether,
+                propertyChecker: address(0),
+                initialNFTIDs: akolytesToDeposit,
+                initialTokenBalance: 0
+            })
+        );
+    }
+
     // TODO: normal buy n sell pool
 
     /*//////////////////////////////////////////////////////////////
@@ -423,8 +450,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         if (newRoyalty <= MAX_ROYALTY) {
             _setDefaultRoyalty(address(this), newRoyalty);
             emit NewRoyalty(newRoyalty);
-        }
-        else {
+        } else {
             revert TooHigh();
         }
     }
@@ -437,7 +463,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
         // Can only yeet below 341 (ensures no supply rug)
         uint256 numIds = ids.length;
-        for (uint i; i < numIds; ++i) {
+        for (uint256 i; i < numIds; ++i) {
             if (ids[i] >= 341) {
                 revert Scarce();
             }

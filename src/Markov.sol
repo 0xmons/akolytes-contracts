@@ -8,7 +8,6 @@ interface IMarkov {
 }
 
 contract Markov is IMarkov {
-    
     using strings for string;
     using strings for strings.slice;
 
@@ -16,7 +15,8 @@ contract Markov is IMarkov {
     uint256 constant NUM_WORDS = 256;
     uint256 constant BYTE = 8;
 
-    string constant INCANTATION = 'Appears ,creator ,up ,World ,back ,unknown ,stars ,man ,old ,eye ,resides ,plane ,come ,earth. ,Many ,though ,even ,primordial ,wears ,light. ,female ,When ,so ,bound ,destroy ,red ,beings ,ability ,He ,or ,ancient ,Gods ,physical ,Pitch ,depths ,before ,most ,appear ,being ,eyes ,her ,creature ,described ,mass ,their ,such ,his ,often ,entities ,across ,blue ,Unnamed ,wings. ,they ,are ,into ,each ,living ,Her ,tentacles ,upon ,which ,Abyss ,arms ,first ,great ,also ,Rhot. ,Gulf ,dwell ,Old ,One ,deep ,colossal ,life ,human ,from ,ever ,every ,new ,few ,not ,known ,she ,glowing ,covered ,but ,Its ,always ,many ,no ,long ,than ,green ,Gigantic ,powerful ,had ,once ,order ,may ,was ,killed ,head ,small ,for ,body ,servant ,takes ,monstrous ,She ,power ,dark ,yet ,world ,has ,Time ,dead ,Said ,blood ,mysterious ,its ,much ,any ,between ,void ,through ,other ,name ,humanoid ,made ,six ,eye. ,seen ,large ,being ,pure ,fire ,eyes. ,time ,some ,thing ,own ,mouth ,huge ,been ,after ,three ,Gods ,were ,where ,out ,realm ,in ,Gods. ,His ,bring ,whose ,one ,will ,massive ,he ,over ,single ,have ,who ,those ,A ,only ,death. ,on ,knowledge ,all ,people ,to ,said ,is ,entity ,An ,if ,reality ,more ,head. ,dwells ,flesh ,The ,souls ,creatures ,In ,death ,when ,entity ,gigantic ,appears ,last ,create ,during ,exists ,deity ,universe. ,believed ,manifestation ,true ,since ,him ,things ,four ,depicted ,giant ,end ,white ,within ,like ,god ,death ,face ,long ,figure ,lives ,them. ,gods ,embodiment ,very ,as ,now ,be ,can ,it ,this ,created ,Black ,It ,it. ,shape ,They ,enormous ,an ,with ,them ,form ,a ,and ,immense ,of ,light ,black ,by ,capable ,able ,at ,world. ,the ,state ,that ,force ,two ,center';
+    string constant INCANTATION =
+        "Appears ,creator ,up ,World ,back ,unknown ,stars ,man ,old ,eye ,resides ,plane ,come ,earth. ,Many ,though ,even ,primordial ,wears ,light. ,female ,When ,so ,bound ,destroy ,red ,beings ,ability ,He ,or ,ancient ,Gods ,physical ,Pitch ,depths ,before ,most ,appear ,being ,eyes ,her ,creature ,described ,mass ,their ,such ,his ,often ,entities ,across ,blue ,Unnamed ,wings. ,they ,are ,into ,each ,living ,Her ,tentacles ,upon ,which ,Abyss ,arms ,first ,great ,also ,Rhot. ,Gulf ,dwell ,Old ,One ,deep ,colossal ,life ,human ,from ,ever ,every ,new ,few ,not ,known ,she ,glowing ,covered ,but ,Its ,always ,many ,no ,long ,than ,green ,Gigantic ,powerful ,had ,once ,order ,may ,was ,killed ,head ,small ,for ,body ,servant ,takes ,monstrous ,She ,power ,dark ,yet ,world ,has ,Time ,dead ,Said ,blood ,mysterious ,its ,much ,any ,between ,void ,through ,other ,name ,humanoid ,made ,six ,eye. ,seen ,large ,being ,pure ,fire ,eyes. ,time ,some ,thing ,own ,mouth ,huge ,been ,after ,three ,Gods ,were ,where ,out ,realm ,in ,Gods. ,His ,bring ,whose ,one ,will ,massive ,he ,over ,single ,have ,who ,those ,A ,only ,death. ,on ,knowledge ,all ,people ,to ,said ,is ,entity ,An ,if ,reality ,more ,head. ,dwells ,flesh ,The ,souls ,creatures ,In ,death ,when ,entity ,gigantic ,appears ,last ,create ,during ,exists ,deity ,universe. ,believed ,manifestation ,true ,since ,him ,things ,four ,depicted ,giant ,end ,white ,within ,like ,god ,death ,face ,long ,figure ,lives ,them. ,gods ,embodiment ,very ,as ,now ,be ,can ,it ,this ,created ,Black ,It ,it. ,shape ,They ,enormous ,an ,with ,them ,form ,a ,and ,immense ,of ,light ,black ,by ,capable ,able ,at ,world. ,the ,state ,that ,force ,two ,center";
 
     uint256[256] FREQS = [
         69021166917929654183797854193921103065232878953171560433536973939980225734631,
@@ -306,7 +306,7 @@ contract Markov is IMarkov {
                 }
             }
             s = string(abi.encodePacked(s, item.toString()));
-            freq = FREQS[wordIndex];            
+            freq = FREQS[wordIndex];
             unchecked {
                 ++j;
             }
