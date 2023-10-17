@@ -151,7 +151,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     //////////////////////////////////////////////////////////////*/
 
     // Claim for mons
-    function claimForMons(uint256[] calldata ids) public {
+    function tap_to_acquire_akolyte(uint256[] calldata ids) public {
         for (uint256 i; i < ids.length; ++i) {
             if (ERC721(MONS).ownerOf(ids[i]) != msg.sender) {
                 revert Monless();

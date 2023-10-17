@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 
 import {strings} from "./libs/strings.sol";
-import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 
 interface IMarkov {
     function speak(uint256 magic, uint256 duration) external view returns (string memory s);
