@@ -15,14 +15,12 @@ import {ICurve} from "lssvm2/bonding-curves/ICurve.sol";
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {ILSSVMPairFactoryLike} from "./ILSSVMPairFactory.sol";
+import {PairFactoryLike} from "./PairFactoryLike.sol";
 import {RoyaltyHandler} from "./RoyaltyHandler.sol";
 import {ERC721Minimal} from "./ERC721Minimal.sol";
 
-import {strings} from "./libs/strings.sol";
+import {StringLib} from "./libs/StringLib.sol";
 import {Base64} from "./libs/Base64.sol";
-import {Distributions} from "./libs/Distributions.sol";
-
 
 interface IMarkov {
     function speak(uint256 magic, uint256 duration) external view returns (string memory s);
@@ -44,8 +42,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     using SafeTransferLib for address payable;
     using SafeTransferLib for ERC20;
-    using strings for string;
-    using strings for strings.slice;
+    using StringLib for string;
+    using StringLib for StringLib.slice;
 
     /*//////////////////////////////////////////////////////////////
                        Error
@@ -130,7 +128,13 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _mons, address _factory, address _markov, address _gda, address _xmon, address _linear)
+    constructor(
+        address _mons, 
+        address _factory, 
+        address _markov, 
+        address _gda, 
+        address _xmon, 
+        address _linear)
         ERC721Minimal("Akolytes", "AKL")
         Owned(msg.sender)
     {
@@ -154,7 +158,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     //////////////////////////////////////////////////////////////*/
 
     // Claim for mons
-    function tap_to_acquire_akolyte(uint256[] calldata ids) public {
+    function tap_to_summon_akolytes(uint256[] calldata ids) public {
         for (uint256 i; i < ids.length; ++i) {
             if (ERC721(MONS).ownerOf(ids[i]) != msg.sender) {
                 revert Monless();
@@ -247,11 +251,11 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
         // Always allow transfer if one of the recipients is a sudo pool
         bool isPair;
-        try ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(from) returns (bool result) {
+        try PairFactoryLike(SUDO_FACTORY).isValidPair(from) returns (bool result) {
             isPair = result;
         } catch {}
         if (!isPair) {
-            try ILSSVMPairFactoryLike(SUDO_FACTORY).isValidPair(to) returns (bool result) {
+            try PairFactoryLike(SUDO_FACTORY).isValidPair(to) returns (bool result) {
                 isPair = result;
             } catch {}
         }
@@ -295,53 +299,92 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         return name;
     }
 
-    // Don't worry about anything from here until the tokenURI
+    // @dev Don't worry about anything from here until the tokenURI
     function _getItemFromCSV(string memory str, uint256 index) internal pure returns (string memory) {
-        strings.slice memory strSlice = str.toSlice();
+        StringLib.slice memory strSlice = str.toSlice();
         string memory separatorStr = ",";
-        strings.slice memory separator = separatorStr.toSlice();
-        strings.slice memory item;
+        StringLib.slice memory separator = separatorStr.toSlice();
+        StringLib.slice memory item;
         for (uint256 i = 0; i <= index; i++) {
             item = strSlice.split(separator);
         }
         return item.toString();
     }
 
-    function d1(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d1(seed));
+    function d1(uint256 seed) internal pure returns (uint256 result) {
+        uint256 start = 0;
+        uint256 end = 512;
+        uint256 diff = end + 1 - start;
+        result = (seed % diff) + start;
     }
 
-    function d2(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d2(seed));
+    function d2(uint256 seed) internal pure returns (uint256 result) {
+        uint256 start = 0;
+        uint256 end = 512;
+        uint256 subresult1 = d1(seed);
+        uint256 seed2 = uint256(keccak256(abi.encode(seed, start, end)));
+        uint256 subresult2 = d1(seed2);
+        result = (subresult1 + subresult2) / 2;
     }
 
-    function d3(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d3(seed));
+    function d3(uint256 seed) internal pure returns (uint256 result) {
+        uint256 start = 0;
+        uint256 end = 512;
+        uint256 midpoint = (start + end) / 2;
+        uint256 d2Value = d2(seed);
+        if (d2Value >= midpoint) {
+            result = end - (d2Value - midpoint);
+        } else {
+            result = start + (midpoint - d2Value);
+        }
     }
 
-    function d4(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d4(seed));
+    function d4(uint256 seed) internal pure returns (uint256 result) {
+        uint256 start = 0;
+        uint256 end = 512;
+        result = d1(seed);
+        if (result % 2 == 1) {
+            result = d1(uint256(keccak256(abi.encode(seed, start, end))));
+        }
     }
 
-    function d5(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d5(seed));
+    function d5(uint256 seed) internal pure returns (uint256 result) {
+        uint256 selector = seed % 4;
+        uint256 newSeed = uint256(keccak256(abi.encode(seed / d1(seed))));
+        if (selector == 0) {
+            result = d3(newSeed);
+        } else if (selector == 1) {
+            result = d1(newSeed);
+        } else if (selector == 2) {
+            result = d2(newSeed);
+        } else if (selector == 3) {}
+        result = d4(newSeed);
     }
 
-    function d6(uint256 seed) internal pure returns (string memory) {
-        return Strings.toString(Distributions.d6(seed));
+    function d6(uint256 id) internal pure returns (uint256) {
+        if (id == 0) {
+            return 0;
+        }
+        for (uint256 i = 1; i < id / 2; i++) {
+            uint256 result = id / i;
+            if (result == 0) {
+                return 1;
+            }
+        }
+        return 2;
     }
 
     function secondD(uint256 seed, uint256 id) internal pure returns (string memory) {
         return string(
             abi.encodePacked(
                 '"trait_type": "4tiart",' '"value": "',
-                d4(seed),
+                Strings.toString(d4(seed)),
                 '"},{',
                 '"trait_type": "V",' '"value": "',
-                d5(seed),
+                Strings.toString(d5(seed)),
                 '"},{',
                 '"trait_type": "-- . . . .",' '"value": "',
-                d6(id),
+                Strings.toString(d6(id)),
                 '"}'
             )
         );
@@ -352,13 +395,13 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
             abi.encodePacked(
                 "{",
                 '"trait_type": "TRAIT ONE",' '"value": "',
-                d1(seed),
+                Strings.toString(d1(seed)),
                 '"},{',
                 '"trait_type": "7R417_2",' '"value": "',
-                d2(seed),
+                Strings.toString(d2(seed)),
                 '"},{',
                 '"trait_type": "trait3",' '"value": "',
-                d3(seed),
+                Strings.toString(d3(seed)),
                 '"},{',
                 secondD(seed, id)
             )
@@ -421,8 +464,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     function setupGDA() public onlyOwner {
         uint256[] memory empty = new uint256[](0);
-        LSSVMPair pair = ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
-            ILSSVMPairFactoryLike.CreateERC721ERC20PairParams({
+        LSSVMPair pair = PairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
+            PairFactoryLike.CreateERC721ERC20PairParams({
                 token: ERC20(XMON_ADDRESS),
                 nft: IERC721(address(this)),
                 bondingCurve: ICurve(GDA_ADDRESS),
@@ -448,14 +491,14 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     function setupTrade() public onlyOwner {
         uint256[] memory empty = new uint256[](0);
-        LSSVMPair pair = ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ETH(
+        LSSVMPair pair = PairFactoryLike(SUDO_FACTORY).createPairERC721ETH(
             IERC721(address(this)),
             ICurve(LINEAR_ADDRESS),
             payable(address(this)),
             LSSVMPair.PoolType.TRADE,
-            0.069 ether,
+            0.0512 ether,
             0,
-            0.069 ether,
+            0.0256 ether,
             address(0),
             empty
         );

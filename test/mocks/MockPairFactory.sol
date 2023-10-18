@@ -5,9 +5,9 @@ import {IERC721} from "openzeppelin-contracts/contracts/token/ERC721/IERC721.sol
 import {ICurve} from "lssvm2/bonding-curves/ICurve.sol";
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
 
-import {ILSSVMPairFactoryLike} from "../../src/ILSSVMPairFactory.sol";
+import {PairFactoryLike} from "../../src/PairFactoryLike.sol";
 
-contract MockPairFactory is ILSSVMPairFactoryLike {
+contract MockPairFactory is PairFactoryLike {
 
     mapping(address => bool) isAllowed;
 
@@ -36,6 +36,6 @@ contract MockPairFactory is ILSSVMPairFactoryLike {
         uint256[] calldata _initialNFTIDs
     ) external payable returns (LSSVMPair pair) {}
 
-    function createPairERC721ERC20(ILSSVMPairFactoryLike.CreateERC721ERC20PairParams calldata params) external returns (LSSVMPair pair) {}
+    function createPairERC721ERC20(PairFactoryLike.CreateERC721ERC20PairParams calldata params) external returns (LSSVMPair pair) {}
 
 }

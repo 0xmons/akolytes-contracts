@@ -6,7 +6,7 @@ import {ICurve} from "lssvm2/bonding-curves/ICurve.sol";
 import {LSSVMPair} from "lssvm2/LSSVMPair.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-interface ILSSVMPairFactoryLike {
+interface PairFactoryLike {
     function isValidPair(address pairAddress) external view returns (bool);
 
     function createPairERC721ETH(

@@ -64,7 +64,7 @@ contract AkolytesTest is Test {
         pairFactory.setBondingCurveAllowed(ICurve(address(gdaCurve)), true);
     }
 
-    function test_tap_to_acquire_akolyte() public {
+    function test_tap_to_summon_akolytes() public {
 
         // Mint IDs 0 to 9 to msg.sender
         mockMons.mint(0, 10);
@@ -74,7 +74,7 @@ contract AkolytesTest is Test {
         for (uint i; i < 10; ++i) {
             ids[i] = i;
         }
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Assert that we own them all
         for (uint i; i < 10; ++i) {
@@ -86,32 +86,32 @@ contract AkolytesTest is Test {
 
         // Assert that we cannot claim again
         vm.expectRevert("ALREADY_MINTED");
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Attempt to claim for ALICE, expect it to fail
         vm.prank(ALICE);
         vm.expectRevert(Akolytes.Monless.selector);
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Mint another one for ALICE to cliam
         vm.startPrank(ALICE);
         mockMons.mint(10, 1);
         uint256[] memory aliceId = new uint256[](1);
         aliceId[0] = 10;
-        akolytes.tap_to_acquire_akolyte(aliceId);
+        akolytes.tap_to_summon_akolytes(aliceId);
         assertEq(akolytes.balanceOf(address(ALICE)), 1);
         assertEq(akolytes.ownerOf(10), address(ALICE));
         vm.stopPrank();
     }
 
-    function test_tap_to_acquire_akolyteMalicious() public {
+    function test_tap_to_summon_akolytesMalicious() public {
         // Mint IDs 0 to 9 to msg.sender
         mockMons.mint(0, 10);
         uint256[] memory ids = new uint256[](10);
 
         // Attempt to claim for ID #0 ten times
         vm.expectRevert("ALREADY_MINTED");
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Mint ID 1000 to msg.sender
         mockMons.mint(1000, 1);
@@ -120,7 +120,7 @@ contract AkolytesTest is Test {
 
         // Expect it to fail because it is greater than ID 512
         vm.expectRevert(Akolytes.Scarce.selector);
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
     }
 
     function test_yeet() public {
@@ -172,7 +172,7 @@ contract AkolytesTest is Test {
         // Attempt to claim for ID 0
         mockMons.mint(0, 1);
         uint256[] memory ids = new uint256[](1);
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Transfer to ALICE
         address testAddy = address(this);
@@ -211,7 +211,7 @@ contract AkolytesTest is Test {
         uint256[] memory ids = new uint256[](2);
         ids[0] = 0;
         ids[1] = 1;
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Send 1 ETH to the akolytes contract
         payable(address(akolytes)).safeTransferETH(1 ether);
@@ -278,7 +278,7 @@ contract AkolytesTest is Test {
         // Attempt to claim for ID 0
         mockMons.mint(0, 1);
         uint256[] memory ids = new uint256[](1);
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Transfer to ALICE
         address testAddy = address(this);
@@ -359,7 +359,7 @@ contract AkolytesTest is Test {
         for (uint i; i < 10; ++i) {
             ids[i] = i;
         }
-        akolytes.tap_to_acquire_akolyte(ids);
+        akolytes.tap_to_summon_akolytes(ids);
 
         // Check the URI
         emit Foo(akolytes.tokenURI(1));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-library strings {
+library StringLib {
     struct slice {
         uint256 _len;
         uint256 _ptr;

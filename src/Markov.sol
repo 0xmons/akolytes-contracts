@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.20;
 
-import {strings} from "./libs/strings.sol";
+import {StringLib} from "./libs/StringLib.sol";
 
 contract Markov {
-    using strings for string;
-    using strings for strings.slice;
+    using StringLib for string;
+    using StringLib for StringLib.slice;
 
     uint256 constant POSITION = 32;
     uint256 constant NUM_WORDS = 256;
@@ -277,10 +277,10 @@ contract Markov {
     function speak(uint256 magic, uint256 duration) public view returns (string memory s) {
         magic = uint256(keccak256(abi.encode(magic)));
         // Get first rng word
-        strings.slice memory strSlice = INCANTATION.toSlice();
+        StringLib.slice memory strSlice = INCANTATION.toSlice();
         string memory separatorStr = ",";
-        strings.slice memory separator = separatorStr.toSlice();
-        strings.slice memory item;
+        StringLib.slice memory separator = separatorStr.toSlice();
+        StringLib.slice memory item;
         uint256 wordIndex = magic % NUM_WORDS;
         for (uint256 i; i <= wordIndex;) {
             item = strSlice.split(separator);
