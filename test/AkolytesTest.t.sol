@@ -365,9 +365,10 @@ contract AkolytesTest is Test {
         emit Foo(akolytes.tokenURI(1));
     }
 
-    function test_gda() public {
-        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(0), address(0));
+    function test_sudoPoolSetup() public {
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(0), address(linearCurve));
         akolytes.setupGDA();
+        akolytes.setupTrade();
     }
 
     // Receive ETH

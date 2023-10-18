@@ -23,7 +23,10 @@ import {strings} from "./libs/strings.sol";
 import {Base64} from "./libs/Base64.sol";
 import {Distributions} from "./libs/Distributions.sol";
 
-import {IMarkov} from "./Markov.sol";
+
+interface IMarkov {
+    function speak(uint256 magic, uint256 duration) external view returns (string memory s);
+}
 
 contract Akolytes is ERC721Minimal, ERC2981, Owned {
     /*//////////////////////////////////////////////////////////////
@@ -66,7 +69,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                          Constants
     //////////////////////////////////////////////////////////////*/
 
-    uint256 constant MAX_AKOLS = 512;
+    uint256 constant TOTAL_AKOLS = 512;
     string private constant ARWEAVE_HASH = "XxDgZs6LRWDmzQIfR0Lssic8a4k3eQbyaosttObj7Ec";
 
     // Name generation process: 1 random from s1, 1 random from s2, and then 0-2 from s3
@@ -164,7 +167,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     function claimRoyalties(address royaltyToken, uint256[] calldata ids) public returns (uint256 royaltiesReceived) {
         uint256 idLength = ids.length;
         accumulateRoyalty(royaltyToken);
-        uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / MAX_AKOLS;
+        uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / TOTAL_AKOLS;
         for (uint256 i; i < idLength; ++i) {
             if (ownerOf(ids[i]) == msg.sender) {
                 uint256 idAndTokenKey = uint256(uint160(royaltyToken)) << 96 | ids[i];
@@ -404,7 +407,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         }
         for (uint256 i; i < numIds;) {
             uint256 id = ids[i];
-            if (id >= MAX_AKOLS) {
+            if (id >= TOTAL_AKOLS) {
                 revert Scarce();
             }
             require(ownerOf(id) == address(0), "ALREADY_MINTED");
@@ -433,8 +436,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 initialTokenBalance: 0
             })
         );
-        uint256[] memory akolytesToDeposit = new uint256[](72);
-        for (uint256 i; i < 72;) {
+        uint256[] memory akolytesToDeposit = new uint256[](69);
+        for (uint256 i; i < 69;) {
             akolytesToDeposit[i] = 341 + i;
             unchecked {
                 ++i;
@@ -443,7 +446,28 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         _mint(address(pair), akolytesToDeposit);
     }
 
-    // TODO: normal buy n sell pool
+    function setupTrade() public onlyOwner {
+        uint256[] memory empty = new uint256[](0);
+        LSSVMPair pair = ILSSVMPairFactoryLike(SUDO_FACTORY).createPairERC721ETH(
+            IERC721(address(this)),
+            ICurve(LINEAR_ADDRESS),
+            payable(address(this)),
+            LSSVMPair.PoolType.TRADE,
+            0.069 ether,
+            0,
+            0.069 ether,
+            address(0),
+            empty
+        );
+        uint256[] memory akolytesToDeposit = new uint256[](102);
+        for (uint256 i; i < 102;) {
+            akolytesToDeposit[i] = 410 + i;
+            unchecked {
+                ++i;
+            }
+        }
+        _mint(address(pair), akolytesToDeposit);
+    }
 
     /*//////////////////////////////////////////////////////////////
                         Tweaks

@@ -3,11 +3,7 @@ pragma solidity 0.8.20;
 
 import {strings} from "./libs/strings.sol";
 
-interface IMarkov {
-    function speak(uint256 magic, uint256 duration) external view returns (string memory s);
-}
-
-contract Markov is IMarkov {
+contract Markov {
     using strings for string;
     using strings for strings.slice;
 
