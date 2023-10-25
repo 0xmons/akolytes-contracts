@@ -252,7 +252,7 @@ contract Akolytes is ERC721, ERC2981 {
                                 '", "image": "',
                                 "ar://",
                                 ARWEAVE_HASH,
-                                "/m1",
+                                "/m",
                                 Strings.toString(id),
                                 ".gif",
                                 '", "attributes": [',
