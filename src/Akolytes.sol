@@ -55,6 +55,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     error Scarce();
     error TooHigh();
     error NoYeet();
+    error NoZero();
+    error WrongFrom();
+    error Unauth();
 
     /*//////////////////////////////////////////////////////////////
                        Events
@@ -108,6 +111,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     address payable public immutable ROYALTY_HANDER;
     uint256 private immutable START_TIME;
 
+    address public immutable GDA_POOL;
+    address public immutable TRADE_POOL;
+
     // Babble babble
     IMarkov public immutable MARKOV;
 
@@ -128,29 +134,54 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                          Constructor
     //////////////////////////////////////////////////////////////*/
 
-    constructor(
-        address _mons, 
-        address _factory, 
-        address _markov, 
-        address _gda, 
-        address _xmon, 
-        address _linear)
-        ERC721Minimal("Akolytes", "AKL")
+    constructor(address _mons, address _factory, address _markov, address _gda, address _xmon, address _linear)
+        ERC721Minimal("Akolytes", "AKOL")
         Owned(msg.sender)
     {
         MONS = _mons;
         SUDO_FACTORY = _factory;
         ROYALTY_HANDER = payable(address(new RoyaltyHandler()));
-
-        // 5% royalty, set to this address
-        _setDefaultRoyalty(address(this), 500);
-
         START_TIME = block.timestamp;
-
         MARKOV = IMarkov(_markov);
         GDA_ADDRESS = _gda;
         XMON_ADDRESS = _xmon;
         LINEAR_ADDRESS = _linear;
+
+        // 5% royalty, set to this address
+        _setDefaultRoyalty(address(this), 500);
+
+        // Init pools
+        uint256[] memory empty = new uint256[](0);
+        GDA_POOL = address(
+            PairFactoryLike(_factory).createPairERC721ERC20(
+                PairFactoryLike.CreateERC721ERC20PairParams({
+                    token: ERC20(_mons),
+                    nft: IERC721(address(this)),
+                    bondingCurve: ICurve(_gda),
+                    assetRecipient: payable(address(0)),
+                    poolType: LSSVMPair.PoolType.NFT,
+                    delta: ((uint128(1500000000) << 88)) | ((uint128(11574) << 48)) | uint128(block.timestamp),
+                    fee: 0,
+                    spotPrice: 5 ether,
+                    propertyChecker: address(0),
+                    initialNFTIDs: empty,
+                    initialTokenBalance: 0
+                })
+            )
+        );
+        TRADE_POOL = address(
+            PairFactoryLike(_factory).createPairERC721ETH(
+                IERC721(address(this)),
+                ICurve(_linear),
+                payable(address(this)),
+                LSSVMPair.PoolType.TRADE,
+                0.0512 ether,
+                0,
+                0.0256 ether,
+                address(0),
+                empty
+            )
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -234,11 +265,15 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     // Transfers and sets time delay if to/from a non-sudo pool
     function transferFrom(address from, address to, uint256 id) public override {
-        require(from == ownerOf(id), "WRONG_FROM");
-        require(to != address(0), "INVALID_RECIPIENT");
-        require(
-            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id], "NOT_AUTHORIZED"
-        );
+        if (from != ownerOf(id)) {
+            revert WrongFrom();
+        }
+        if (to == address(0)) {
+            revert NoZero();
+        }
+        if (msg.sender != from && !isApprovedForAll[from][msg.sender] && msg.sender != getApproved[id]) {
+            revert Unauth();
+        }
 
         // Underflow of the sender's balance is impossible because we check for
         // ownership above and the recipient's balance can't realistically overflow.
@@ -259,6 +294,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 isPair = result;
             } catch {}
         }
+        // If either to or from a pool, always allow it
         if (isPair) {
             ownerOfWithData[id].owner = to;
         }
@@ -268,7 +304,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
             if (timestamp < ownerOfWithData[id].lastTransferTimestamp) {
                 revert Cooldown();
             }
-            // If it is past the cooldown, then we set a new cooldown but let the transfer go through
+            // If it is past the cooldown, then we set a new cooldown, and let the transfer go through
             ownerOfWithData[id] = OwnerOfWithData({owner: to, lastTransferTimestamp: uint96(timestamp + 7 days)});
         }
         emit Transfer(from, to, id);
@@ -462,23 +498,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         }
     }
 
-    function setupGDA() public onlyOwner {
-        uint256[] memory empty = new uint256[](0);
-        LSSVMPair pair = PairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
-            PairFactoryLike.CreateERC721ERC20PairParams({
-                token: ERC20(XMON_ADDRESS),
-                nft: IERC721(address(this)),
-                bondingCurve: ICurve(GDA_ADDRESS),
-                assetRecipient: payable(address(0)),
-                poolType: LSSVMPair.PoolType.NFT,
-                delta: ((uint128(1500000000) << 88)) | ((uint128(11574) << 48)) | uint128(block.timestamp),
-                fee: 0,
-                spotPrice: 5 ether,
-                propertyChecker: address(0),
-                initialNFTIDs: empty,
-                initialTokenBalance: 0
-            })
-        );
+    function initPools() public onlyOwner {
         uint256[] memory akolytesToDeposit = new uint256[](69);
         for (uint256 i; i < 69;) {
             akolytesToDeposit[i] = 341 + i;
@@ -486,30 +506,53 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 ++i;
             }
         }
-        _mint(address(pair), akolytesToDeposit);
-    }
-
-    function setupTrade() public onlyOwner {
-        uint256[] memory empty = new uint256[](0);
-        LSSVMPair pair = PairFactoryLike(SUDO_FACTORY).createPairERC721ETH(
-            IERC721(address(this)),
-            ICurve(LINEAR_ADDRESS),
-            payable(address(this)),
-            LSSVMPair.PoolType.TRADE,
-            0.0512 ether,
-            0,
-            0.0256 ether,
-            address(0),
-            empty
-        );
-        uint256[] memory akolytesToDeposit = new uint256[](102);
+        _mint(GDA_POOL, akolytesToDeposit);
+        akolytesToDeposit = new uint256[](102);
         for (uint256 i; i < 102;) {
             akolytesToDeposit[i] = 410 + i;
             unchecked {
                 ++i;
             }
         }
-        _mint(address(pair), akolytesToDeposit);
+        _mint(TRADE_POOL, akolytesToDeposit);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        Conveniences
+    //////////////////////////////////////////////////////////////*/
+
+    function idsForAddress(address a) external view returns (uint256[] memory) {
+        uint256 balance = balanceOf(a);
+        uint256[] memory ids = new uint256[](balance);
+        if (balance > 0) {
+            uint256 counter = 0;
+            for (uint256 i; i < TOTAL_AKOLS;) {
+                address owner = ownerOfWithData[i].owner;
+                if (owner == a) {
+                    ids[counter] = i;
+                    unchecked {
+                        ++counter;
+                    }
+                    if (counter == balance) {
+                        return ids;
+                    }
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+        }
+        return ids;
+    }
+
+    function royaltiesAccrued(uint256[] memory ids, address royaltyToken) external view returns (uint256[] memory royaltyPerId) {
+        uint256 idLength = ids.length;
+        royaltyPerId = new uint256[](idLength);
+        uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / TOTAL_AKOLS;
+        for (uint256 i; i < idLength; ++i) {
+            uint256 idAndTokenKey = uint256(uint160(royaltyToken)) << 96 | ids[i];
+            royaltyPerId[i] = amountPerId - royaltyClaimedPerId[idAndTokenKey];
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
