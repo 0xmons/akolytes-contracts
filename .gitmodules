@@ -10,3 +10,9 @@
 [submodule "lib/lssvm2"]
 	path = lib/lssvm2
 	url = https://github.com/sudoswap/lssvm2
+[submodule "lib/zipped-contracts"]
+	path = lib/zipped-contracts
+	url = https://github.com/merklejerk/zipped-contracts
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady

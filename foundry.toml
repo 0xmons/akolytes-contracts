@@ -3,3 +3,11 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc_version = "0.8.20"
+
+[rpc_endpoints]
+goerli = "${RPC_URL_GOERLI}"
+mainnet = "${RPC_URL_MAINNET}"
+
+[etherscan]
+goerli = {key = "PFS2F52GR5CMC8RY83M79WTZFTZKPU4SBH", url = "https://api-goerli.etherscan.io/api"}
+mainnet = {key = "PFS2F52GR5CMC8RY83M79WTZFTZKPU4SBH"}
