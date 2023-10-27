@@ -22,12 +22,12 @@ contract MyScript is Script {
         //     0x9fe1E403c043214017a6719c1b64190c634229eF
         // );
         a = new Akolytes(
-            0x0000000000000000000000000000000000000000,
-            0x967544b2Dd5c1c7A459e810C9B60AE4FC8227201,
-            0x3d126031A109a93bC6D80F04Ba5684A0BdD9BE1b,
-            0x5e9a0Ef66A6BC2E6Ac7C9811374521f7BAd89e53,
-            0x9B2660A7BEcd0Bf3d90401D1C214d2CD36317da5,
-            0x9fe1E403c043214017a6719c1b64190c634229eF
+            0x0000000000000000000000000000000000000000, // no 0xmons
+            0x967544b2Dd5c1c7A459e810C9B60AE4FC8227201, // the factory
+            0x3d126031A109a93bC6D80F04Ba5684A0BdD9BE1b, // the markov
+            0x5e9a0Ef66A6BC2E6Ac7C9811374521f7BAd89e53, // the curve
+            0x9B2660A7BEcd0Bf3d90401D1C214d2CD36317da5, // the token
+            0x9fe1E403c043214017a6719c1b64190c634229eF // the other curve
         );
         vm.stopBroadcast();
     }

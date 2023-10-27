@@ -155,7 +155,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         GDA_POOL = address(
             PairFactoryLike(_factory).createPairERC721ERC20(
                 PairFactoryLike.CreateERC721ERC20PairParams({
-                    token: ERC20(_mons),
+                    token: ERC20(_xmon),
                     nft: IERC721(address(this)),
                     bondingCurve: ICurve(_gda),
                     assetRecipient: payable(address(0)),
@@ -175,9 +175,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 ICurve(_linear),
                 payable(address(this)),
                 LSSVMPair.PoolType.TRADE,
-                0.0512 ether,
+                0.0128 ether,
                 0,
-                0.0256 ether,
+                0.0128 ether,
                 address(0),
                 empty
             )

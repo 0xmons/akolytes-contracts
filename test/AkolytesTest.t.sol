@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 import {MockERC721} from "./mocks/MockERC721.sol";
+import {Test20} from "./mocks/Test20.sol";
 import {MockPairFactory} from "./mocks/MockPairFactory.sol";
 import {Akolytes} from "../src/Akolytes.sol";
 import {Markov} from "../src/Markov.sol";
@@ -272,7 +273,7 @@ contract AkolytesTest is Test {
     function test_sudoSpecificInteractions() public {
 
         // Create new akolytes that is bound to the pair factory
-        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(0), address(0), address(0));
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(0), address(linearCurve));
 
          // Mint ID 0 to msg.sender
         // Attempt to claim for ID 0
@@ -349,7 +350,7 @@ contract AkolytesTest is Test {
         Markov m = new Markov();
 
         // Create new akolytes that is bound to the pair factory
-        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m), address(0), address(0), address(0));
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m), address(gdaCurve), address(0), address(linearCurve));
 
         // Mint IDs 0 to 9 to msg.sender
         mockMons.mint(0, 10);
@@ -366,9 +367,103 @@ contract AkolytesTest is Test {
     }
 
     function test_sudoPoolSetup() public {
+        Test20 test20 = new Test20();
+
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(test20), address(linearCurve));
+        akolytes.initPools();
+
+        // Buy from the linear pool
+        LSSVMPair p1 = LSSVMPair(akolytes.TRADE_POOL());
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = 410;
+        (,,, uint256 p1Cost, , ) = p1.getBuyNFTQuote(410, 1);
+        p1.swapTokenForSpecificNFTs{value: p1Cost}(
+            ids,
+            p1Cost,
+            address(this),
+            false,
+            address(0)
+        );
+
+        // Buy from the GDA pool 
+        LSSVMPair p2 = LSSVMPair(akolytes.GDA_POOL());
+        test20.mint(address(this), 10 ether);
+        test20.approve(address(p2), 10 ether);
+        ids[0] = 341;
+        (,,, uint256 p2Cost, , ) = p2.getBuyNFTQuote(341, 1);
+        p2.swapTokenForSpecificNFTs(
+            ids,
+            p2Cost,
+            address(this),
+            false,
+            address(0)
+        );
+    }
+
+    function test_transferErrors() public {
         akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(0), address(linearCurve));
-        akolytes.setupGDA();
-        akolytes.setupTrade();
+        mockMons.mint(0, 1);
+        uint256[] memory ids = new uint256[](1);
+        akolytes.tap_to_summon_akolytes(ids);
+
+        vm.startPrank(address(123));
+        mockMons.mint(1, 2);
+        ids[0] = 1;
+        akolytes.tap_to_summon_akolytes(ids);
+        vm.stopPrank();
+
+        // We shouldn't be able to call transferFrom on IDs we don't own
+        vm.expectRevert(Akolytes.WrongFrom.selector);
+        akolytes.transferFrom(address(this), address(1234741), 1);
+
+        // We shouldn't be able to call transferFrom to send IDs to address(0)
+        vm.expectRevert(Akolytes.NoZero.selector);
+        akolytes.transferFrom(address(this), address(0), 0);
+
+        // We shouldn't be able to call transferFrom on IDs if from != the person we're transferring from
+        address ogCaller = address(this);
+        vm.prank(address(24));
+        vm.expectRevert(Akolytes.Unauth.selector);
+        akolytes.transferFrom(ogCaller, address(1234741), 0);
+    }
+
+    function test_idsForAddress() public {
+
+        // Claim ID 0
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(0), address(linearCurve));
+        mockMons.mint(0, 1);
+        uint256[] memory ids = new uint256[](1);
+        akolytes.tap_to_summon_akolytes(ids);
+
+        // Check held IDs
+        uint256[] memory recordedIds = akolytes.idsForAddress(address(this));
+        assertEq(recordedIds.length, 1);
+        assertEq(recordedIds[0], 0);
+
+        // Claim IDs 10-19
+        mockMons.mint(10, 10);
+        ids = new uint256[](10);
+        for (uint i; i < 10; ++i) {
+          ids[i] = 10 + i;
+        }
+        akolytes.tap_to_summon_akolytes(ids);
+
+        // Check held IDs
+        recordedIds = akolytes.idsForAddress(address(this));
+        assertEq(recordedIds.length, 11);
+
+        // Claim IDs 510 and 511
+        mockMons.mint(510, 2);
+        ids = new uint256[](2);
+        ids[0] = 510;
+        ids[1] = 511;
+        akolytes.tap_to_summon_akolytes(ids);
+
+        // Check held IDs
+        recordedIds = akolytes.idsForAddress(address(this));
+        assertEq(recordedIds.length, 13);
+        assertEq(recordedIds[11], 510);
+        assertEq(recordedIds[12], 511);
     }
 
     // Receive ETH
