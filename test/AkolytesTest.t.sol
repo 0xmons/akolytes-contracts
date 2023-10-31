@@ -370,10 +370,10 @@ contract AkolytesTest is Test {
         Test20 test20 = new Test20();
 
         akolytes = new Akolytes(address(mockMons), address(pairFactory), address(0), address(gdaCurve), address(test20), address(linearCurve));
-        akolytes.initPools();
+        (address gdaPool, address tradePool) = akolytes.initPools();
 
         // Buy from the linear pool
-        LSSVMPair p1 = LSSVMPair(akolytes.TRADE_POOL());
+        LSSVMPair p1 = LSSVMPair(tradePool);
         uint256[] memory ids = new uint256[](1);
         ids[0] = 410;
         (,,, uint256 p1Cost, , ) = p1.getBuyNFTQuote(410, 1);
@@ -386,7 +386,7 @@ contract AkolytesTest is Test {
         );
 
         // Buy from the GDA pool 
-        LSSVMPair p2 = LSSVMPair(akolytes.GDA_POOL());
+        LSSVMPair p2 = LSSVMPair(gdaPool);
         test20.mint(address(this), 10 ether);
         test20.approve(address(p2), 10 ether);
         ids[0] = 341;
@@ -398,6 +398,10 @@ contract AkolytesTest is Test {
             false,
             address(0)
         );
+
+        // Cannot call again
+        vm.expectRevert();
+        akolytes.initPools();
     }
 
     function test_transferErrors() public {
@@ -465,6 +469,36 @@ contract AkolytesTest is Test {
         assertEq(recordedIds[11], 510);
         assertEq(recordedIds[12], 511);
     }
+
+    function test_recast() public {
+
+        Markov m = new Markov();
+
+        // Claim ID 0
+        akolytes = new Akolytes(address(mockMons), address(pairFactory), address(m), address(gdaCurve), address(0), address(linearCurve));
+        mockMons.mint(0, 1);
+        uint256[] memory ids = new uint256[](1);
+        akolytes.tap_to_summon_akolytes(ids);
+
+        // Check that recasting fails if no money is spent
+        vm.expectRevert();
+        akolytes.recast(0, 1);
+
+        // Check that recasting fails if someone else is caller
+        vm.expectRevert();
+        vm.prank(address(1));
+        akolytes.recast(0, 1);
+
+        // Get initial speak
+        string memory uri1 = akolytes.tokenURI(0);
+
+        // Change speech
+        akolytes.recast{value: 0.01 ether}(0, 1);
+        string memory uri2 = akolytes.tokenURI(0);
+
+        // Check that they are now diff
+        assertEq(keccak256(abi.encodePacked((uri1))) == keccak256(abi.encodePacked((uri2))), false);
+      }
 
     // Receive ETH
     receive() external payable {}

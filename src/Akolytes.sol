@@ -111,9 +111,6 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     address payable public immutable ROYALTY_HANDER;
     uint256 private immutable START_TIME;
 
-    address public immutable GDA_POOL;
-    address public immutable TRADE_POOL;
-
     // Babble babble
     IMarkov public immutable MARKOV;
 
@@ -129,6 +126,9 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     // Mapping of royalty amounts accumulated in total per royalty token
     mapping(address => uint256) public royaltyAccumulatedPerTokenType;
+
+    // Seed overrides for speaking
+    mapping(uint256 => uint256) public markovSeed;
 
     /*//////////////////////////////////////////////////////////////
                          Constructor
@@ -149,43 +149,10 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
         // 5% royalty, set to this address
         _setDefaultRoyalty(address(this), 500);
-
-        // Init pools
-        uint256[] memory empty = new uint256[](0);
-        GDA_POOL = address(
-            PairFactoryLike(_factory).createPairERC721ERC20(
-                PairFactoryLike.CreateERC721ERC20PairParams({
-                    token: ERC20(_xmon),
-                    nft: IERC721(address(this)),
-                    bondingCurve: ICurve(_gda),
-                    assetRecipient: payable(address(0)),
-                    poolType: LSSVMPair.PoolType.NFT,
-                    delta: ((uint128(1500000000) << 88)) | ((uint128(11574) << 48)) | uint128(block.timestamp),
-                    fee: 0,
-                    spotPrice: 5 ether,
-                    propertyChecker: address(0),
-                    initialNFTIDs: empty,
-                    initialTokenBalance: 0
-                })
-            )
-        );
-        TRADE_POOL = address(
-            PairFactoryLike(_factory).createPairERC721ETH(
-                IERC721(address(this)),
-                ICurve(_linear),
-                payable(address(this)),
-                LSSVMPair.PoolType.TRADE,
-                0.0128 ether,
-                0,
-                0.0128 ether,
-                address(0),
-                empty
-            )
-        );
     }
 
     /*//////////////////////////////////////////////////////////////
-                 User Facing Claims
+                 User Facing
     //////////////////////////////////////////////////////////////*/
 
     // Claim for mons
@@ -245,6 +212,12 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
             ERC20(royaltyToken).safeTransfer(ROYALTY_HANDER, tokenBalance);
             emit RoyaltiesClaimed(royaltyToken, tokenBalance);
         }
+    }
+
+    function recast(uint256 id, uint256 seed) external payable {
+        require(msg.value == 0.01 ether);
+        require(ownerOf(id) == msg.sender);
+        markovSeed[id] = seed;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -444,6 +417,15 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         );
     }
 
+    function getMagic(uint256 id) public view returns (uint256) {
+        if (markovSeed[id] == 0) {
+          return uint256(keccak256(abi.encode(id)));
+        }
+        else {
+          return uint256(keccak256(abi.encode(id, markovSeed[id])));
+        }
+    }
+
     // Handles metadata from arweave hash, constructs name and metadata
     function tokenURI(uint256 id) public view override returns (string memory) {
         uint256 seed = uint256(keccak256(abi.encode(id & uint160(SUDO_FACTORY))));
@@ -456,7 +438,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                             '{"name":"',
                             getName(id),
                             '", "description":"',
-                            MARKOV.speak(id, DURATION),
+                            MARKOV.speak(getMagic(id), DURATION),
                             '", "image": "',
                             "ar://",
                             ARWEAVE_HASH,
@@ -498,7 +480,38 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         }
     }
 
-    function initPools() public onlyOwner {
+    function initPools() public onlyOwner returns (address gdaPool, address tradePool){
+        uint256[] memory empty = new uint256[](0);
+        gdaPool = address(
+            PairFactoryLike(SUDO_FACTORY).createPairERC721ERC20(
+                PairFactoryLike.CreateERC721ERC20PairParams({
+                    token: ERC20(XMON_ADDRESS),
+                    nft: IERC721(address(this)),
+                    bondingCurve: ICurve(GDA_ADDRESS),
+                    assetRecipient: payable(address(0)),
+                    poolType: LSSVMPair.PoolType.NFT,
+                    delta: ((uint128(1500000000) << 88)) | ((uint128(11574) << 48)) | uint128(block.timestamp),
+                    fee: 0,
+                    spotPrice: 5 ether,
+                    propertyChecker: address(0),
+                    initialNFTIDs: empty,
+                    initialTokenBalance: 0
+                })
+            )
+        );
+        tradePool = address(
+            PairFactoryLike(SUDO_FACTORY).createPairERC721ETH(
+                IERC721(address(this)),
+                ICurve(LINEAR_ADDRESS),
+                payable(address(this)),
+                LSSVMPair.PoolType.TRADE,
+                0.0128 ether,
+                0,
+                0.0128 ether,
+                address(0),
+                empty
+            )
+        );
         uint256[] memory akolytesToDeposit = new uint256[](69);
         for (uint256 i; i < 69;) {
             akolytesToDeposit[i] = 341 + i;
@@ -506,7 +519,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 ++i;
             }
         }
-        _mint(GDA_POOL, akolytesToDeposit);
+        _mint(gdaPool, akolytesToDeposit);
         akolytesToDeposit = new uint256[](102);
         for (uint256 i; i < 102;) {
             akolytesToDeposit[i] = 410 + i;
@@ -514,7 +527,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
                 ++i;
             }
         }
-        _mint(TRADE_POOL, akolytesToDeposit);
+        _mint(tradePool, akolytesToDeposit);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -545,7 +558,11 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         return ids;
     }
 
-    function royaltiesAccrued(uint256[] memory ids, address royaltyToken) external view returns (uint256[] memory royaltyPerId) {
+    function royaltiesAccrued(uint256[] memory ids, address royaltyToken)
+        external
+        view
+        returns (uint256[] memory royaltyPerId)
+    {
         uint256 idLength = ids.length;
         royaltyPerId = new uint256[](idLength);
         uint256 amountPerId = royaltyAccumulatedPerTokenType[royaltyToken] / TOTAL_AKOLS;
