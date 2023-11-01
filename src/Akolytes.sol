@@ -428,7 +428,7 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
 
     // Handles metadata from arweave hash, constructs name and metadata
     function tokenURI(uint256 id) public view override returns (string memory) {
-        uint256 seed = uint256(keccak256(abi.encode(id & uint160(SUDO_FACTORY))));
+        uint256 seed = uint256(keccak256(abi.encode(id, uint160(SUDO_FACTORY))));
         return string(
             abi.encodePacked(
                 "data:application/json;base64,",
