@@ -371,8 +371,8 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
         if (id == 0) {
             return 0;
         }
-        for (uint256 i = 1; i < id / 2; i++) {
-            uint256 result = id / i;
+        for (uint256 i = 2; i <= id / 2; i++) {
+            uint256 result = id - ((id / i) * i);
             if (result == 0) {
                 return 1;
             }
