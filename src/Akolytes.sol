@@ -74,16 +74,13 @@ contract Akolytes is ERC721Minimal, ERC2981, Owned {
     string private constant ARWEAVE_HASH = "XxDgZs6LRWDmzQIfR0Lssic8a4k3eQbyaosttObj7Ec";
 
     // Name generation process: 1 random from s1, 1 random from s2, and then 0-2 from s3
-    string private constant s1 =
-        "Cth,Az,Ap,Ch,Bl,Gh,Gl,Kr,M,Nl,Ny,D,Xy,Rh,U,Bl,Cz,En,Fz,H,Il,J,Jh,Y,YvK,Z,Zh,Sl,T,O,U,Ub,Os,Eh,Sh";
+    string private constant s1 = "Cth,Az,Ap,Ch,Bl,Gh,Gl,Kr,M,Nl,Ny,D,Xy,Rh,U,Bl,Cz,En,Fz,H,Il,J,Jh,Y,YvK,Z,Zh,Sl,T,O,U,Ub,Os,Eh,Sh";
     uint256 private constant s1Length = 35;
 
-    string private constant s2 =
-        "ak,al,es,et,id,il,id,oo,or,ux,un,ap,ek,ex,in,ol,up,-af,-aw,'et,'ed,-in,-is,'od,-at,-of";
+    string private constant s2 = "ak,al,es,et,id,il,id,oo,or,ux,un,ap,ek,ex,in,ol,up,-af,-aw,'et,'ed,-in,-is,'od,-at,-of";
     uint256 private constant s2Length = 26;
 
-    string private constant s3 =
-        "ag,al,on,ak,ash,a,ber,bal,buk,cla,ced,ck,dar,dru,est,end,fli,fa,-fur,gen,ga,his,ha,ilk,in,-in,ju,ja,-ki,ll,lo,mo,-mu,ma,no,r,ss,sh,sto,ta,tha,un,vy,va,wy,wu,y,yy,z,zs,ton,gon,-man,lu,get,har,uz,ek,ec,-s";
+    string private constant s3 = "ag,al,on,ak,ash,a,ber,bal,buk,cla,ced,ck,dar,dru,est,end,fli,fa,-fur,gen,ga,his,ha,ilk,in,-in,ju,ja,-ki,ll,lo,mo,-mu,ma,no,r,ss,sh,sto,ta,tha,un,vy,va,wy,wu,y,yy,z,zs,ton,gon,-man,lu,get,har,uz,ek,ec,-s";
     uint256 private constant s3Length = 60;
 
     // Max number of times we grab a syllable from s3
